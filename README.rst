@@ -47,8 +47,8 @@ Uridium Protocol
 This will provide stability to our economy, as well as create a new investment opportunity for users who want to earn interest on their collateral. 
 
 
-Galerium
--------------
+Galerium Module
+----------------
 
 Galerium (GALR) will be used as a stablecoin within the Uridium Network. This stablecoin will be pegged to the value of a fiat currency, enabling users to transact with confidence, knowing that the value of their assets is stable. 
 
