@@ -27,11 +27,15 @@ Uridium Protocol
 -------------
 * `About <./docs/defi/PROTOCOL.rst>`_
   
+Praedium
+-------------
 Praedium (PDM) will give holders a say in the decisions made by the network. This governance token will be used to vote on proposals to improve the Uridium Network, and to participate in the management of the network’s finances. 
 
 * `Praedium (DAO) <./docs/defi/PROTOCOL.rst>`_
 * `Contracts <./docs/defi/PROTOCOL.rst>`_
 
+Galerium
+-------------
 Galerium (GALR) will be used as a stablecoin within the Uridium Network. This stablecoin will be pegged to the value of a fiat currency, enabling users to transact with confidence, knowing that the value of their assets is stable. 
 
 * `Galerium (Coin) <./docs/defi/PROTOCOL.rst>`_
