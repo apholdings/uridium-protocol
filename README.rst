@@ -13,7 +13,6 @@ Marketplace
 NFT
 -------------
 * `About <./docs/defi/NFTS.rst>`_
-* `Contract <./docs/defi/NFTS.rst>`_
 
 To implement the use of NFTs in our online courses marketplace, we will create smart contracts that allow content creators to mint NFTs to represent their courses. Each NFT will be unique and non-fungible, representing a specific course or tutorial.
 
@@ -21,13 +20,13 @@ Sellers will be able to create a new NFT for each course they create, providing 
 
 **NFT.sol**
 =================
+* `Contract <./docs/defi/NFTS.rst>`_
 This contract is responsible for...
 
 
 NFT Marketplace
 -------------
 * `About <./docs/defi/NFTMARKETPLACE.rst>`_
-* `Contract <./docs/defi/NFTMARKETPLACE.rst>`_
 
 When a student purchases an NFT representing a course, they will gain access to the course content. The NFT will be stored in their digital wallet, and they can access the course content by interacting with the smart contract associated with the NFT.
 
@@ -37,6 +36,7 @@ Overall, the use of NFTs will provide a unique way for sellers to monetize their
 
 **NFTMarketplace.sol**
 =================
+* `Contract <./docs/defi/NFTMARKETPLACE.rst>`_
 This contract is responsible for...
 
 
