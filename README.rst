@@ -37,12 +37,9 @@ When a student purchases an NFT representing a course, they will gain access to 
 
 Ecosystem
 **********
+* `About <./docs/defi/PROTOCOL.rst>`_
 
 For our multi-collateral system, we plan to implement a similar model to MakerDAO, where users can lock their collateral into a smart contract to generate stablecoins. 
-
-Uridium Protocol
--------------
-* `About <./docs/defi/PROTOCOL.rst>`_
 
 This will provide stability to our economy, as well as create a new investment opportunity for users who want to earn interest on their collateral. 
 
