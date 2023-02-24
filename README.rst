@@ -49,36 +49,42 @@ This will provide stability to our economy, as well as create a new investment o
 
 Galerium
 -------------
+
 Galerium (GALR) will be used as a stablecoin within the Uridium Network. This stablecoin will be pegged to the value of a fiat currency, enabling users to transact with confidence, knowing that the value of their assets is stable. 
-* `Galerium.sol <./Galerium.rst>`_
-* `GaleriumJoin.sol <./GaleriumJoin.rst>`_
 
 **Galerium.sol**
 =============
+* `Galerium.sol <./Galerium.rst>`_
+
 This contract is responsible for...
 
 **GaleriumJoin.sol**
 =================
-This contract is responsible for...
+* `GaleriumJoin.sol <./GaleriumJoin.rst>`_
 
+This contract is responsible for...
 
 Praedium
 -------------
 Praedium (PDM) will give holders a say in the decisions made by the network. This governance token will be used to vote on proposals to improve the Uridium Network, and to participate in the management of the network’s finances. 
-* `Praedium.sol <./docs/defi/PROTOCOL.rst>`_
-* `Votes.sol <./docs/defi/PROTOCOL.rst>`_
-* `Disputes.sol <./docs/defi/PROTOCOL.rst>`_
 
 **Praedium.sol**
 =============
+* `Praedium.sol <./docs/defi/PROTOCOL.rst>`_
+
 This contract is responsible for...
+
 
 **Votes.sol**
 =============
+* `Votes.sol <./docs/defi/PROTOCOL.rst>`_
+
 This contract is responsible for...
 
 **Disputes.sol**
 =============
+* `Disputes.sol <./docs/defi/PROTOCOL.rst>`_
+
 This contract is responsible for...
 
 The combination of Praedium (PDM) and Galerium (GALR) will create a well-functioning and transparent ecosystem that provides its users with the tools to securely exchange and manage their assets.
