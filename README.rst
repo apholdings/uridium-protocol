@@ -25,7 +25,9 @@ Ecosystem Description
 **********************
 Uridium Protocol
 -------------
-* `Docs <./docs/defi/PROTOCOL.rst>`_
+* `About <./docs/defi/PROTOCOL.rst>`_
+* `Praedium (DAO) <./docs/defi/PROTOCOL.rst>`_
+* `Galerium (Coin) <./docs/defi/PROTOCOL.rst>`_
   
 Praedium (PDM) will give holders a say in the decisions made by the network. This governance token will be used to vote on proposals to improve the Uridium Network, and to participate in the management of the network’s finances. 
 
