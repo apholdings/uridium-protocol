@@ -1,11 +1,11 @@
 Uridium Network (DeFi Protocol)
 ################################
 
-The Uridium Network is an open source ecosystem designed to bring together decentralized finance (DeFi), online education, and video gaming. 
+The **Uridium Network is an open source ecosystem** designed to bring together decentralized finance (DeFi), online education, physical products, and video gaming. 
 
-Our platform will provide a means for people to access, create, and trade valuable assets in a decentralized way. 
+Our platform *provides a means for people to access, create, and trade valuable assets in a decentralized way*. 
 
-We are building a set of smart contracts to support the exchange of digital and physical assets, as well as a DAO governance token called Praedium (PDM) and a stablecoin called Galerium (GALR) that will be used in our economy.
+We built *a set of smart contracts* to support the exchange of digital and physical assets, as well as a *DAO governance token* called Praedium (PDM) *and a stablecoin* called Galerium (GALR) that will be used in our economy.
 
 
 Marketplace
