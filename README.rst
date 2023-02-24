@@ -10,9 +10,14 @@ We are building a set of smart contracts to support the exchange of digital and 
 
 Marketplace
 ****************
+* `About <./docs/defi/NFTS.rst>`_
+
+An online platform where sellers can create and sell courses in exchange for Galerium (GALR) stablecoin. 
+
+The courses are represented as NFTs on the Uridium Network, allowing for unique ownership and transfer of each course.
+
 NFT
 -------------
-* `About <./docs/defi/NFTS.rst>`_
 
 To implement the use of NFTs in our online courses marketplace, we will create smart contracts that allow content creators to mint NFTs to represent their courses. Each NFT will be unique and non-fungible, representing a specific course or tutorial.
 
