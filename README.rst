@@ -19,8 +19,6 @@ The courses are represented as NFTs on the Uridium Network, allowing for unique 
 NFT
 -------------
 
-To implement the use of NFTs in our online courses marketplace, we will create smart contracts that allow content creators to mint NFTs to represent their courses. Each NFT will be unique and non-fungible, representing a specific course or tutorial.
-
 Sellers will be able to create a new NFT for each course they create, providing details such as course title, description, level, duration, and any other relevant information. Once the NFT is created, it can be listed on our marketplace for purchase by students.
 
 **NFT.sol**
