@@ -19,6 +19,10 @@ To implement the use of NFTs in our online courses marketplace, we will create s
 
 Sellers will be able to create a new NFT for each course they create, providing details such as course title, description, level, duration, and any other relevant information. Once the NFT is created, it can be listed on our marketplace for purchase by students.
 
+**NFT.sol**
+=================
+This contract is responsible for...
+
 
 NFT Marketplace
 -------------
@@ -30,6 +34,10 @@ When a student purchases an NFT representing a course, they will gain access to 
 We can also integrate voting mechanisms into our platform to allow users to vote for the best courses, and potentially earn rewards for doing so. Additionally, we could offer staking or yield farming incentives for users who hold and interact with the NFTs representing courses on our platform.
 
 Overall, the use of NFTs will provide a unique way for sellers to monetize their content and for students to gain access to exclusive courses while having ownership over the NFT representing that course.
+
+**NFTMarketplace.sol**
+=================
+This contract is responsible for...
 
 
 Ecosystem
