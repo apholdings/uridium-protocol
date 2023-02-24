@@ -10,7 +10,7 @@ We are building a set of smart contracts to support the exchange of digital and 
 
 Marketplace
 ****************
-* `About <./docs/defi/NFTS.rst>`_
+* `About <./docs/defi/NFTMARKETPLACE.rst>`_
 
 An online platform where sellers can create and sell courses in exchange for Galerium (GALR) stablecoin. 
 
@@ -31,7 +31,6 @@ This contract is responsible for...
 
 NFT Marketplace
 -------------
-* `About <./docs/defi/NFTMARKETPLACE.rst>`_
 
 When a student purchases an NFT representing a course, they will gain access to the course content. The NFT will be stored in their digital wallet, and they can access the course content by interacting with the smart contract associated with the NFT.
 
