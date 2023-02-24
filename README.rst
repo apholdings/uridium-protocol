@@ -32,25 +32,8 @@ We can also integrate voting mechanisms into our platform to allow users to vote
 Overall, the use of NFTs will provide a unique way for sellers to monetize their content and for students to gain access to exclusive courses while having ownership over the NFT representing that course.
 
 
-Ecosystem Description
-**********************  
-Praedium
--------------
-Praedium (PDM) will give holders a say in the decisions made by the network. This governance token will be used to vote on proposals to improve the Uridium Network, and to participate in the management of the network’s finances. 
-
-* `Praedium (DAO) <./docs/defi/PROTOCOL.rst>`_
-* `Contracts <./docs/defi/PROTOCOL.rst>`_
-
-Galerium
--------------
-Galerium (GALR) will be used as a stablecoin within the Uridium Network. This stablecoin will be pegged to the value of a fiat currency, enabling users to transact with confidence, knowing that the value of their assets is stable. 
-
-* `Galerium (Coin) <./docs/defi/PROTOCOL.rst>`_
-* `Contracts <./docs/defi/PROTOCOL.rst>`_
-
-
-Multi-Collateral Stablecoin
-****************************
+Ecosystem
+**********
 
 For our multi-collateral system, we plan to implement a similar model to MakerDAO, where users can lock their collateral into a smart contract to generate stablecoins. 
 
@@ -63,9 +46,9 @@ This will provide stability to our economy, as well as create a new investment o
 
 Galerium
 -------------
+Galerium (GALR) will be used as a stablecoin within the Uridium Network. This stablecoin will be pegged to the value of a fiat currency, enabling users to transact with confidence, knowing that the value of their assets is stable. 
 * `Galerium.sol <./Galerium.rst>`_
 * `GaleriumJoin.sol <./GaleriumJoin.rst>`_
-Galerium (GALR) will be used as a stablecoin within the Uridium Network. This stablecoin will be pegged to the value of a fiat currency, enabling users to transact with confidence, knowing that the value of their assets is stable. 
 
 **Galerium.sol**
 =============
@@ -78,11 +61,10 @@ This contract is responsible for...
 
 Praedium
 -------------
+Praedium (PDM) will give holders a say in the decisions made by the network. This governance token will be used to vote on proposals to improve the Uridium Network, and to participate in the management of the network’s finances. 
 * `Praedium.sol <./docs/defi/PROTOCOL.rst>`_
 * `Votes.sol <./docs/defi/PROTOCOL.rst>`_
 * `Disputes.sol <./docs/defi/PROTOCOL.rst>`_
-
-Praedium (PDM) will give holders a say in the decisions made by the network. This governance token will be used to vote on proposals to improve the Uridium Network, and to participate in the management of the network’s finances. 
 
 **Praedium.sol**
 =============
@@ -95,7 +77,6 @@ This contract is responsible for...
 **Disputes.sol**
 =============
 This contract is responsible for...
-
 
 The combination of Praedium (PDM) and Galerium (GALR) will create a well-functioning and transparent ecosystem that provides its users with the tools to securely exchange and manage their assets.
 
