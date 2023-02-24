@@ -68,11 +68,11 @@ Galerium
 Galerium (GALR) will be used as a stablecoin within the Uridium Network. This stablecoin will be pegged to the value of a fiat currency, enabling users to transact with confidence, knowing that the value of their assets is stable. 
 
 Galerium.sol
-------------
+=============
 This contract is responsible for...
 
 GaleriumJoin.sol
-----------------
+=================
 This contract is responsible for...
 
 
