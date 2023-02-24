@@ -8,8 +8,21 @@ Our platform will provide a means for people to access, create, and trade valuab
 We are building a set of smart contracts to support the exchange of digital and physical assets, as well as a DAO governance token called Praedium (PDM) and a stablecoin called Galerium (GALR) that will be used in our economy.
 
 
-Project Description
-********************
+NFT Marketplace
+****************
+To implement the use of NFTs in our online courses marketplace, we will create smart contracts that allow content creators to mint NFTs to represent their courses. Each NFT will be unique and non-fungible, representing a specific course or tutorial.
+
+Sellers will be able to create a new NFT for each course they create, providing details such as course title, description, level, duration, and any other relevant information. Once the NFT is created, it can be listed on our marketplace for purchase by students.
+
+When a student purchases an NFT representing a course, they will gain access to the course content. The NFT will be stored in their digital wallet, and they can access the course content by interacting with the smart contract associated with the NFT.
+
+We can also integrate voting mechanisms into our platform to allow users to vote for the best courses, and potentially earn rewards for doing so. Additionally, we could offer staking or yield farming incentives for users who hold and interact with the NFTs representing courses on our platform.
+
+Overall, the use of NFTs will provide a unique way for sellers to monetize their content and for students to gain access to exclusive courses while having ownership over the NFT representing that course.
+
+
+Ecosystem Description
+**********************
 Praedium (PDM) will give holders a say in the decisions made by the network. This governance token will be used to vote on proposals to improve the Uridium Network, and to participate in the management of the network’s finances. 
 
 Galerium (GALR) will be used as a stablecoin within the Uridium Network. This stablecoin will be pegged to the value of a fiat currency, enabling users to transact with confidence, knowing that the value of their assets is stable. 
