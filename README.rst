@@ -8,11 +8,22 @@ Our platform will provide a means for people to access, create, and trade valuab
 We are building a set of smart contracts to support the exchange of digital and physical assets, as well as a DAO governance token called Praedium (PDM) and a stablecoin called Galerium (GALR) that will be used in our economy.
 
 
-NFT Marketplace
+Marketplace
 ****************
+NFT
+-------------
+* `About <./docs/defi/NFTS.rst>`_
+* `Contract <./docs/defi/NFTS.rst>`_
+
 To implement the use of NFTs in our online courses marketplace, we will create smart contracts that allow content creators to mint NFTs to represent their courses. Each NFT will be unique and non-fungible, representing a specific course or tutorial.
 
 Sellers will be able to create a new NFT for each course they create, providing details such as course title, description, level, duration, and any other relevant information. Once the NFT is created, it can be listed on our marketplace for purchase by students.
+
+
+NFT Marketplace
+-------------
+* `About <./docs/defi/NFTMARKETPLACE.rst>`_
+* `Contract <./docs/defi/NFTMARKETPLACE.rst>`_
 
 When a student purchases an NFT representing a course, they will gain access to the course content. The NFT will be stored in their digital wallet, and they can access the course content by interacting with the smart contract associated with the NFT.
 
@@ -22,11 +33,7 @@ Overall, the use of NFTs will provide a unique way for sellers to monetize their
 
 
 Ecosystem Description
-**********************
-Uridium Protocol
--------------
-* `About <./docs/defi/PROTOCOL.rst>`_
-  
+**********************  
 Praedium
 -------------
 Praedium (PDM) will give holders a say in the decisions made by the network. This governance token will be used to vote on proposals to improve the Uridium Network, and to participate in the management of the network’s finances. 
@@ -41,17 +48,56 @@ Galerium (GALR) will be used as a stablecoin within the Uridium Network. This st
 * `Galerium (Coin) <./docs/defi/PROTOCOL.rst>`_
 * `Contracts <./docs/defi/PROTOCOL.rst>`_
 
-The combination of Praedium (PDM) and Galerium (GALR) will create a well-functioning and transparent ecosystem that provides its users with the tools to securely exchange and manage their assets.
-
 
 Multi-Collateral Stablecoin
 ****************************
 
 For our multi-collateral system, we plan to implement a similar model to MakerDAO, where users can lock their collateral into a smart contract to generate stablecoins. 
 
+Uridium Protocol
+-------------
+* `About <./docs/defi/PROTOCOL.rst>`_
+
 This will provide stability to our economy, as well as create a new investment opportunity for users who want to earn interest on their collateral. 
 
-We will also incentivize users to join our multi-collateral system by providing rewards in the form of PDM or GALR, which can be used for governance and to provide liquidity to our tokens.
+
+Galerium
+-------------
+* `Galerium.sol <./Galerium.rst>`_
+* `GaleriumJoin.sol <./GaleriumJoin.rst>`_
+Galerium (GALR) will be used as a stablecoin within the Uridium Network. This stablecoin will be pegged to the value of a fiat currency, enabling users to transact with confidence, knowing that the value of their assets is stable. 
+
+Galerium.sol
+------------
+This contract is responsible for...
+
+GaleriumJoin.sol
+----------------
+This contract is responsible for...
+
+
+Praedium
+-------------
+* `Praedium.sol <./docs/defi/PROTOCOL.rst>`_
+* `Votes.sol <./docs/defi/PROTOCOL.rst>`_
+* `Disputes.sol <./docs/defi/PROTOCOL.rst>`_
+
+Praedium (PDM) will give holders a say in the decisions made by the network. This governance token will be used to vote on proposals to improve the Uridium Network, and to participate in the management of the network’s finances. 
+
+Praedium.sol
+------------
+This contract is responsible for...
+
+Votes.sol
+----------------
+This contract is responsible for...
+
+Disputes.sol
+----------------
+This contract is responsible for...
+
+
+The combination of Praedium (PDM) and Galerium (GALR) will create a well-functioning and transparent ecosystem that provides its users with the tools to securely exchange and manage their assets.
 
 
 Liquidity Providers
