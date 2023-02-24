@@ -1,7 +1,7 @@
 Uridium Network (DeFi Protocol)
 ################################
 
-The *Uridium Network is an open source ecosystem* designed to bring together decentralized finance (DeFi), online education, physical products, and video gaming. 
+The *Uridium Network is an open source ecosystem* designed to bring together decentralized finance (DeFi), online education, physical products, digital art ownership, and video gaming. 
 
 Our platform **provides a means for people to access, create, and trade valuable assets in a decentralized way**. 
 
@@ -26,7 +26,6 @@ Sellers will be able to create a new NFT for each course they create, providing 
 **NFT.sol**
 =================
 * `Contract <./docs/defi/NFTS.rst>`_
-This contract is responsible for...
 
 
 NFT Marketplace
@@ -34,15 +33,9 @@ NFT Marketplace
 
 When a student purchases an NFT representing a course, they will gain access to the course content. The NFT will be stored in their digital wallet, and they can access the course content by interacting with the smart contract associated with the NFT.
 
-We can also integrate voting mechanisms into our platform to allow users to vote for the best courses, and potentially earn rewards for doing so. Additionally, we could offer staking or yield farming incentives for users who hold and interact with the NFTs representing courses on our platform.
-
-Overall, the use of NFTs will provide a unique way for sellers to monetize their content and for students to gain access to exclusive courses while having ownership over the NFT representing that course.
-
 **NFTMarketplace.sol**
 =================
 * `Contract <./docs/defi/NFTMARKETPLACE.rst>`_
-This contract is responsible for...
-
 
 Ecosystem
 **********
