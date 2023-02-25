@@ -31,7 +31,7 @@ NFT Marketplace
 
 When a student purchases an NFT representing a course, they will gain access to the course content. The NFT will be stored in their digital wallet, and they can access the course content by interacting with the smart contract associated with the NFT.
 
-**NFTMarketplace.sol**
+`**NFTMarketplace.sol**<./docs/defi/NFTMARKETPLACE.rst>`_
 =================
 * `Contract <./docs/defi/NFTMARKETPLACE.rst>`_
 
