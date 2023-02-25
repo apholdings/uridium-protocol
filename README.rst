@@ -89,17 +89,13 @@ Collateral Module
 
 The Collateral Module is a key component of the Uridium Network's ecosystem. It is responsible for managing the adapters and auction contracts for each specific collateral type. Similar to the Collateral Module in MakerDAO's system, it contains a join contract (join.sol) and a clip contract (clip.sol) for each new collateral type added to the Vat.
 
-
-
 **Join.sol**
 =================
 The join contract (join.sol) allows standard ERC20 tokens to be deposited for use with the system.
- 
+
 * `Join.sol <./docs/defi/NFTMARKETPLACE.rst>`_
 
-
 **Join.sol** has three variations: GemJoin, ETHJoin, and GalrJoin. GemJoin allows ERC20 tokens to be deposited, ETHJoin allows native Ether to be used, and GalrJoin allows users to withdraw their GALR from the system. Each variation of Join.sol is created specifically to allow the given token type to be join'ed to the Vat, and therefore, each contract has slightly different logic to account for the different types of tokens within the system.
-
 
 
 **Clip.sol**
@@ -116,26 +112,94 @@ clip.sol has been designed to ensure that liquidations are conducted in a fair a
 By using the Collateral Module, the Uridium Network can support a wide variety of collateral types, allowing users to interact with the system using their preferred tokens. This flexibility is key to the success of our ecosystem and will ensure that users have the freedom to choose which assets they wish to use as collateral.
 
 
+Liquidation Module
+-------------------
+In the context of the Uridium protocol, a liquidation is the automatic transfer of collateral from an insufficiently collateralized Vault, along with the transfer of that Vault’s debt to the protocol. In the liquidation contract, an auction is started promptly to sell the transferred collateral for Galerium stablecoins in an attempt to cancel out the debt now assigned to the protocol. This is achieved using our Collateral Auction House, which is based on the Liquidation System 2.0 used by MakerDAO.
+
+**Features**
+=============
+
+#. Instant Settlement
+   
+   * **Dutch Auctions**: They work according to a price calculated from the initial price and the time elapsed since the auction began. The lack of a lock-up period mitigates much of the price volatility risk for auction participants and allows for faster capital recycling.
+
+#. Flash Lending of Collateral
+
+This feature, enabled by instant settlement, eliminates any capital requirement for bidders (excepting gas) — in the sense that even a participant with zero Galerium (and nothing to trade for Galerium) could still purchase from an auction by directing the sale of the auction's collateral into other protocols in exchange for Galerium.
+
+Thus, all Galerium liquidity available across DeFi can be used by any participant to purchase collateral, subject only to gas requirements. The exact mechanics are discussed above, but essentially a participant needs to specify a contract which (conforms to a particular interface), and calldata to supply to it, and the auction contract will automatically invoke whatever logic is in the external contract.
+
+#. Price as a Function of Time
+   
+   * **Price-versus-time curves** are specified through an interface that treats price at the current time as a function of the initial price of an auction and the time at which that price was set.
+
+How to determine the most effective price curve for a given collateral is still an active area of research. This module is configurable and can be replaced in the course of innovation.
+
+#. Improved Keeper Wallet Security
+   
+   * If keepers decide to use the clipperCallee pattern, then they need not store Galerium or collateral on that account. 
+
+This means a keeper need only hold enough ETH to execute transactions that can orchestrate the Clipper.take call, sending collateral to a contract that returns Galerium to the msg.sender to pay for the collateral all in one transaction. The contract implementing the clipperCallee interface can send any remaining collateral or Galerium beyond owe to a cold wallet address inaccessible to the keeper.
+
+
+**Clip.sol**
+=================
+* `Clip.sol <./docs/defi/PROTOCOL.rst>`_
+
+This contract is responsible for clipping a specified amount of collateral from a Vault and generating GALR from it. 
+
+It works by specifying an amount of collateral and a maximum amount of GALR to be generated from that collateral. 
+
+The contract then calculates the minimum amount of collateral required to generate that maximum amount of GALR and clips that amount of collateral from the Vault. 
+
+The resulting GALR is transferred to the caller of the function.
+
+
+**Dog.sol**
+=================
+* `Dog.sol <./docs/defi/PROTOCOL.rst>`_
+
+This contract is responsible for managing the liquidation process in the Uridium protocol. 
+
+When a Vault becomes undercollateralized, Dog.sol automatically transfers the collateral from the Vault to the protocol and starts a collateral auction to sell the transferred collateral for GALR. 
+
+The auction uses a Dutch auction format, which settles instantly and allows for flash lending of collateral. The price of the collateral decreases over time, with occasional increases, and can be reset if it falls below a certain level or if too much time has elapsed since the auction started.
+
+
+**Abacus.sol**
+=================
+* `Abacus.sol <./docs/defi/PROTOCOL.rst>`_
+
+This contract is responsible for calculating the current price of collateral in the Uridium protocol. 
+
+It does so by taking the current price of the collateral as reported by an Oracle and adjusting it based on a configurable buffer parameter. 
+
+The buffer parameter allows the price to be adjusted to account for market volatility and other factors. 
+
+The resulting price is used to determine the amount of collateral to be clipped from a Vault during liquidation, as well as the price of collateral in the collateral auction.
+
+
+
 Praedium Module
 ----------------
 Praedium (PDM) will give holders a say in the decisions made by the network. This governance token will be used to vote on proposals to improve the Uridium Network, and to participate in the management of the network’s finances. 
 
 **Praedium.sol**
 =================
-* `Contract <./docs/defi/PROTOCOL.rst>`_
+* `PraediumToken.sol <./docs/defi/PROTOCOL.rst>`_
 
 This contract is responsible for...
 
 
 **Votes.sol**
 =============
-* `Contract <./docs/defi/PROTOCOL.rst>`_
+* `Voting.sol <./docs/defi/PROTOCOL.rst>`_
 
 This contract is responsible for...
 
 **Disputes.sol**
 =================
-* `Contract <./docs/defi/PROTOCOL.rst>`_
+* `Disputes.sol <./docs/defi/PROTOCOL.rst>`_
 
 This contract is responsible for...
 
