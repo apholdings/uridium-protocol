@@ -459,6 +459,10 @@ Overall, by using a combination of liquidity pools, yield farming, staking, voti
 
 Initial Token Supply
 *********************
+
+Praedium has a fixed total and max supply of 1,005,577 tokens.
+Galerium has a initial total supply of 1,000,000 tokens (which are held in the GALR contract) and unlimited max supply.
+
 * 8% was given to early investors, advisors, and the founding team.
 * 10% was allocated to the Uridium Foundation, to fund ongoing development and operations.
 * 10% was sold during a public initial coin offering (ICO) to fund development and create liquidity.
