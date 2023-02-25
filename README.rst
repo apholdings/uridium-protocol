@@ -119,23 +119,23 @@ In the context of the Uridium protocol, a liquidation is the automatic transfer 
 **Features**
 =============
 
-#. Instant Settlement
+* Instant Settlement
    
    * **Dutch Auctions**: They work according to a price calculated from the initial price and the time elapsed since the auction began. The lack of a lock-up period mitigates much of the price volatility risk for auction participants and allows for faster capital recycling.
 
-#. Flash Lending of Collateral
+* Flash Lending of Collateral
 
 This feature, enabled by instant settlement, eliminates any capital requirement for bidders (excepting gas) — in the sense that even a participant with zero Galerium (and nothing to trade for Galerium) could still purchase from an auction by directing the sale of the auction's collateral into other protocols in exchange for Galerium.
 
 Thus, all Galerium liquidity available across DeFi can be used by any participant to purchase collateral, subject only to gas requirements. The exact mechanics are discussed above, but essentially a participant needs to specify a contract which (conforms to a particular interface), and calldata to supply to it, and the auction contract will automatically invoke whatever logic is in the external contract.
 
-#. Price as a Function of Time
+* Price as a Function of Time
    
    * **Price-versus-time curves** are specified through an interface that treats price at the current time as a function of the initial price of an auction and the time at which that price was set.
 
 How to determine the most effective price curve for a given collateral is still an active area of research. This module is configurable and can be replaced in the course of innovation.
 
-#. Improved Keeper Wallet Security
+* Improved Keeper Wallet Security
    
    * If keepers decide to use the clipperCallee pattern, then they need not store Galerium or collateral on that account. 
 
