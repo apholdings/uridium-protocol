@@ -318,14 +318,131 @@ The Spell contract is an un-owned object that performs one action or series of a
 Rates Module
 ----------------
 
+The Rates module is a fundamental feature of the Uridium Protocol, allowing for the accumulation of stability fees on outstanding loans and interest on savings deposits. 
+
+The mechanism used to perform these accumulation functions is subject to an important constraint: accumulation must be a constant-time operation with respect to the number of loans and the number of savings deposits. 
+
+Otherwise, accumulation events would be very gas-inefficient and might even exceed block gas limits.
+
+Similar to MakerDAO, the solution for both stability fees and the interest rate on savings deposits is to store and update a global "cumulative rate" value (per-asset for stability fees), which can then be multiplied by a normalized loan or deposit amount to give the total debt or deposit amount when needed.
+
+`In Uridium, the two key assets are Praedium (PDM) and Galerium (GALR).` The PDM token is used as collateral for loans, while GALR is used for savings deposits.
+
+Detailed explanations of the two accumulation mechanisms may be found below.
+
+* Stability Fee Accumulation:
+  
+**Overview:**
+
+The stability fee accumulation in Uridium is similar to that in MakerDAO. The rates for stability fees are set for each asset, and the rate values are stored in a global "cumulative rate" value for each asset, which is updated periodically.
+
+In terms of Uridium Protocol, the Jug contract in MakerDAO's Rates Module can be thought of as the contract responsible for calculating and updating the stability fees. In our system, we can call our version of this contract the PraediumJug contract. 
+
+Similarly, the Pot contract in MakerDAO's Rates Module can be thought of as the contract responsible for tracking and updating the savings rate for the DAI token. In our system, we can call our version of this contract the GaleriumPot contract.
+
+**PradeiumJug.sol**
+====================
+* `PradeiumJug.sol <./docs/defi/PROTOCOL.rst>`_
+
+The PraediumJug contract would calculate the stability fees for our protocol's PDM token by utilizing a global cumulative rate that is updated based on a per-second stability fee for each collateral type. 
+
+The contract would also update the debt of each individual vault in the system based on the latest stability fee rate. The contract would have functions for updating the stability fee rates and calculating the stability fees for individual vaults.
+
+
+**GaleriumPot.sol**
+====================
+* `GaleriumPot.sol <./docs/defi/PROTOCOL.rst>`_
+
+The GaleriumPot contract would track and update the savings rate for our protocol's GALR token, similar to how the Pot contract works for DAI in MakerDAO. This contract would maintain a cumulative interest rate parameter that is updated based on a per-second savings rate. The contract would also keep track of individual user balances and be responsible for distributing the savings interest to each user. 
+
+The contract would have functions for updating the savings rate and for depositing and withdrawing GALR tokens from the contract.
+
+
 Proxy Module
 ----------------
+
+the Proxy module would also be created to make it easier for users and developers to interact with the protocol. It would contain contract interfaces, proxies, and aliases to functions necessary for managing our NFT marketplace, online courses, and video games.
+
+**DSRManager.sol**
+===================
+* `DSRManager.sol <./docs/defi/PROTOCOL.rst>`_
+
+The DSRManager contract would be used to allow service providers to deposit and withdraw GALR into the contract pot, enabling them to start earning the Praedium Savings Rate on a pool of GALR in a single function call. This would be useful for smart contracts integrating DSR functionality in our ecosystem.
+
+**CDPManager.sol**
+===================
+* `CDPManager.sol <./docs/defi/PROTOCOL.rst>`_
+
+The CDPManager contract would enable a formalized process for managing Vaults and transferring them between owners in a way that treats them as NFTs. The manager would abstract the Vault usage by a CDPId to make it easier for developers to join collateral to a Vault.
+
+
+**VoteProxy.sol**
+==================
+* `VoteProxy.sol <./docs/defi/PROTOCOL.rst>`_
+
+The VoteProxy contract would facilitate online voting with offline PDM storage. By having a VoteProxy, users would have a linked hot wallet that can pull and push PDM from the proxy’s corresponding cold wallet to DS-Chief, where voting can take place with the online hot wallet. This would allow for two different voting mechanisms and minimize the time that PDM owners need to have their wallet online.
+
+**ProxyActions.sol**
+=====================
+* `ProxyActions.sol <./docs/defi/PROTOCOL.rst>`_
+
+The ProxyActions contract would be designed to be used by the Ds-Proxy, which would be owned individually by users to interact more easily with the Uridium Protocol. The DssProxyActions contract would serve as a library for user's ds-proxies, and users would be able to execute functions and parameters via their proxies.
+
+**Sources of Failure:**
+
+Potential sources of user error and failure modes for these contracts in the Uridium Protocol ecosystem would be similar to those described for the Maker Protocol, and would need to be taken into account to ensure the safety and security of our users.
+
+* DSR Manager
+* CDP Manager
+* Vote Proxy
+* Proxy Actions
+
+**Failure Modes** (*Bounds on Operating Conditions & External Risk Factors*)
+
+* Potential Issues around Chain Reorganization
+* Vote Proxy
+* Proxy Actions
+
 
 Flash Mint Module
 ------------------
 
+**Flash.sol**
+==================
+* `Flash.sol <./docs/defi/PROTOCOL.rst>`_
+
+We can also implement a Flash module to allow users to mint our stablecoin (Galerium, GALR) up to a limit set by our governance, with the condition that they pay it back in the same transaction with a fee. 
+
+This mechanism would allow users to exploit arbitrage opportunities in the DeFi space without having to commit upfront capital, similar to Maker's Flash module.
+
+The benefits of implementing a Flash module in the Uridium Protocol would include improved market efficiencies for Galerium, democratization of arbitrage, which would allow anyone to participate, quicker discovery of exploits requiring large amounts of capital, and the collection of fees as an income source for the protocol.
+
+The Flash module would have a debt ceiling, which would be the maximum amount of Galerium any single transaction can borrow. It would also have minting fees, which would determine how much additional Galerium must be returned to the Flash module at the end of the transaction, and would be transferred into a vow contract at the end of a successful mint.
+
+
 Emergency Shutdown Module
 --------------------------
+
+The Emergency Shutdown Module (ESM) is a critical component of the Maker Protocol that allows the system to be shut down in the event of an emergency. In Maker, there are two types of emergency shutdown: Global Settlement and Emergency Shutdown for Partners.
+
+Global Settlement is a process that can be initiated in response to a catastrophic event that threatens the stability of the Dai system. When Global Settlement is triggered, all Dai is frozen and the collateral is liquidated to cover all outstanding debt. The frozen Dai is then redeemed for its underlying collateral at a fixed price, which is determined by the Maker Governance community.
+
+Emergency Shutdown for Partners is a process that allows specific partners to shut down their individual Vaults in the event of a localized emergency. This allows the partner to exit their position quickly and limit their potential losses.
+
+
+**ESM.sol**
+==================
+* `ESM.sol <./docs/defi/PROTOCOL.rst>`_
+
+In the case of Uridium Protocol, we would need to adapt the emergency shutdown module to work with our ecosystem, which includes Galerium (GALR) as the stablecoin and Praedium (PDM) as the governance token. We would need to develop a set of emergency shutdown procedures that are tailored to our specific needs and that take into account the unique risks associated with our system.
+
+**End.sol**
+==================
+* `End.sol <./docs/defi/PROTOCOL.rst>`_
+
+The End contract is another critical component of the Maker Protocol that allows the system to be shut down. The End contract is responsible for winding down the system by redeeming all outstanding Dai for its underlying collateral at a fixed price. This price is determined by the Maker Governance community and is designed to ensure that all Dai is fully backed by collateral.
+
+In the case of Uridium Protocol, we would need to adapt the End contract to work with our ecosystem, which includes Galerium (GALR) as the stablecoin and Praedium (PDM) as the governance token. We would need to develop a set of procedures that ensure the system can be wound down in a safe and efficient manner in the event of an emergency. These procedures would need to take into account the unique risks associated with our system and ensure that all users are able to exit their positions with minimal losses.
 
 
 Liquidity Providers
