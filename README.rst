@@ -180,6 +180,45 @@ The resulting price is used to determine the amount of collateral to be clipped 
 
 
 
+System Stabilizer Module
+-------------------------
+
+The System Stabilizer Module, also known as the Vow, is responsible for stabilizing the Maker Protocol by governing the mechanisms for minting and burning the stablecoin GALR. 
+
+The Vow can create new GALR by minting it in exchange for collateral, or it can burn existing GALR by redeeming it for collateral. 
+
+These actions are designed to keep the GALR price stable and protect the value of the collateral.
+
+* The System Stabilizer Module consists of three contracts: 
+  
+  * the Vow, 
+  
+  * the Flop, 
+  
+  * the Flap. 
+
+
+**Vow.sol**
+=================
+* `Vow.sol <./docs/defi/PROTOCOL.rst>`_
+
+The Vow is the primary contract, which controls the overall stability of the system. The Flop and Flap are auctions for selling off surplus collateral or buying additional collateral, respectively.
+
+**Flop.sol**
+=================
+* `Flop.sol <./docs/defi/PROTOCOL.rst>`_
+
+The Flop auction contract is used to sell surplus collateral back to the market. The Flop auction begins with an initial bid, and the price gradually decreases over time until the auction ends. The winning bidder receives the surplus collateral in exchange for GALR.
+
+**Flap.sol**
+=================
+* `Flap.sol <./docs/defi/PROTOCOL.rst>`_
+
+The Flap auction contract is used to buy additional collateral for the system. The Flap auction begins with an initial bid, and the price gradually increases over time until the auction ends. The winning bidder receives GALR in exchange for the additional collateral.
+
+These auction contracts are designed to be market-based mechanisms for adjusting the supply and demand of GALR and collateral in the system. They are used to keep the GALR stable and maintain the value of the collateral.
+
+
 Praedium Module
 ----------------
 Praedium (PDM) will give holders a say in the decisions made by the network. This governance token will be used to vote on proposals to improve the Uridium Network, and to participate in the management of the network’s finances. 
