@@ -51,13 +51,13 @@ Galerium (GALR) will be used as a stablecoin within the Uridium Network. This st
 
 **Galerium.sol**
 =============
-* `Galerium.sol <./Galerium.rst>`_
+* `Contract <./Galerium.rst>`_
 
 This contract is responsible for...
 
 **GaleriumJoin.sol**
 =================
-* `GaleriumJoin.sol <./GaleriumJoin.rst>`_
+* `GContract <./GaleriumJoin.rst>`_
 
 This contract is responsible for...
 
@@ -71,7 +71,7 @@ It consists of two key contracts: Vat.sol and Spot.sol.
 
 **Vat.sol**
 =============
-* `Vat.sol <./Galerium.rst>`_
+* `Contract <./Galerium.rst>`_
 
 Vat.sol is responsible for storing the state of the system and tracking user balances, debt positions, and collateral positions. 
 
@@ -79,9 +79,16 @@ The Vat.sol contract also maintains a ledger of all transactions and manages the
 
 **Spot.sol**
 =================
-* `Spot.sol <./GaleriumJoin.rst>`_
+* `Contract <./GaleriumJoin.rst>`_
 
 Spot.sol is responsible for calculating the price of our stablecoin, GALR, based on the value of the underlying collateral in the system. It also manages the liquidation of debt positions when the value of the underlying collateral falls below a certain threshold. This is important to maintain the stability of the system and prevent the emergence of any systemic risks.
+
+
+Collateral Module
+----------------
+
+
+
 
 Praedium Module
 ----------------
@@ -89,20 +96,20 @@ Praedium (PDM) will give holders a say in the decisions made by the network. Thi
 
 **Praedium.sol**
 =============
-* `Praedium.sol <./docs/defi/PROTOCOL.rst>`_
+* `Contract <./docs/defi/PROTOCOL.rst>`_
 
 This contract is responsible for...
 
 
 **Votes.sol**
 =============
-* `Votes.sol <./docs/defi/PROTOCOL.rst>`_
+* `Contract <./docs/defi/PROTOCOL.rst>`_
 
 This contract is responsible for...
 
 **Disputes.sol**
 =============
-* `Disputes.sol <./docs/defi/PROTOCOL.rst>`_
+* `Contract <./docs/defi/PROTOCOL.rst>`_
 
 This contract is responsible for...
 
