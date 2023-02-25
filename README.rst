@@ -37,7 +37,7 @@ When a student purchases an NFT representing a course, they will gain access to 
 
 Ecosystem
 **********
-* `About <./docs/defi/PROTOCOL.rst>`_
+* `About <./docs/praedium/PROTOCOL.rst>`_
 
 For our multi-collateral system, we plan to implement a similar model to MakerDAO, where users can lock their collateral into a smart contract to generate stablecoins. 
 
@@ -144,7 +144,7 @@ This means a keeper need only hold enough ETH to execute transactions that can o
 
 **Clip.sol**
 =================
-* `Clip.sol <./docs/defi/PROTOCOL.rst>`_
+* `Clip.sol <./docs/praedium/PROTOCOL.rst>`_
 
 This contract is responsible for clipping a specified amount of collateral from a Vault and generating GALR from it. 
 
@@ -157,7 +157,7 @@ The resulting GALR is transferred to the caller of the function.
 
 **Dog.sol**
 =================
-* `Dog.sol <./docs/defi/PROTOCOL.rst>`_
+* `Dog.sol <./docs/praedium/PROTOCOL.rst>`_
 
 This contract is responsible for managing the liquidation process in the Uridium protocol. 
 
@@ -168,7 +168,7 @@ The auction uses a Dutch auction format, which settles instantly and allows for 
 
 **Abacus.sol**
 =================
-* `Abacus.sol <./docs/defi/PROTOCOL.rst>`_
+* `Abacus.sol <./docs/praedium/PROTOCOL.rst>`_
 
 This contract is responsible for calculating the current price of collateral in the Uridium protocol. 
 
@@ -200,19 +200,19 @@ These actions are designed to keep the GALR price stable and protect the value o
 
 **Vow.sol**
 =================
-* `Vow.sol <./docs/defi/PROTOCOL.rst>`_
+* `Vow.sol <./docs/praedium/PROTOCOL.rst>`_
 
 The Vow is the primary contract, which controls the overall stability of the system. The Flop and Flap are auctions for selling off surplus collateral or buying additional collateral, respectively.
 
 **Flop.sol**
 =================
-* `Flop.sol <./docs/defi/PROTOCOL.rst>`_
+* `Flop.sol <./docs/praedium/PROTOCOL.rst>`_
 
 The Flop auction contract is used to sell surplus collateral back to the market. The Flop auction begins with an initial bid, and the price gradually decreases over time until the auction ends. The winning bidder receives the surplus collateral in exchange for GALR.
 
 **Flap.sol**
 =================
-* `Flap.sol <./docs/defi/PROTOCOL.rst>`_
+* `Flap.sol <./docs/praedium/PROTOCOL.rst>`_
 
 The Flap auction contract is used to buy additional collateral for the system. The Flap auction begins with an initial bid, and the price gradually increases over time until the auction ends. The winning bidder receives GALR in exchange for the additional collateral.
 
@@ -228,13 +228,13 @@ Similar to the Maker DAO, we will deploy an oracle module for each collateral ty
 
 **OSM.sol**
 =================
-* `OSM.sol <./docs/defi/PROTOCOL.rst>`_
+* `OSM.sol <./docs/praedium/PROTOCOL.rst>`_
 
 The OSM contract (Oracle Security Module) will store the most up-to-date price information for each collateral type and will be used by other modules to determine the value of assets.
 
 **Median.sol**
 =================
-* `Median.sol <./docs/defi/PROTOCOL.rst>`_
+* `Median.sol <./docs/praedium/PROTOCOL.rst>`_
 
 The Median contract, on the other hand, will act as an intermediary between the oracles and the OSM by taking the median of the price feeds from multiple oracles to minimize the risk of an incorrect price being used.
 
@@ -245,7 +245,7 @@ Praedium (PDM) will give holders a say in the decisions made by the network. Thi
 
 **Praedium.sol**
 =================
-* `PraediumToken.sol <./docs/defi/PROTOCOL.rst>`_
+* `PraediumToken.sol <./docs/praedium/PROTOCOL.rst>`_
 
 The Praedium Module contains the Praedium token (PDM), which is an ERC20 token deployed on the Ethereum blockchain. It provides a standard ERC20 token interface with added governance features that allow PDM holders to participate in the decision-making process of the Uridium Protocol.
 
@@ -296,19 +296,19 @@ The key contracts in the governance module are Chief, Pause, and Spell contracts
 
 **Chief.sol**
 =============
-* `Chief.sol <./docs/defi/PROTOCOL.rst>`_
+* `Chief.sol <./docs/praedium/PROTOCOL.rst>`_
 
 The Chief contract provides a method to elect a "chief" contract via an approval voting system, similar to MakerDAO. 
 
 **Pause.sol**
 =============
-* `Pause.sol <./docs/defi/PROTOCOL.rst>`_
+* `Pause.sol <./docs/praedium/PROTOCOL.rst>`_
 
 The Pause contract allows authorized users to schedule function calls that can only be executed once a predetermined waiting period has elapsed. 
 
 **Spell.sol**
 =============
-* `Spell.sol <./docs/defi/PROTOCOL.rst>`_
+* `Spell.sol <./docs/praedium/PROTOCOL.rst>`_
 
 The Spell contract is an un-owned object that performs one action or series of atomic actions one time only.
 
@@ -342,7 +342,7 @@ Similarly, the Pot contract in MakerDAO's Rates Module can be thought of as the 
 
 **PradeiumJug.sol**
 ====================
-* `PradeiumJug.sol <./docs/defi/PROTOCOL.rst>`_
+* `PradeiumJug.sol <./docs/praedium/PROTOCOL.rst>`_
 
 The PraediumJug contract would calculate the stability fees for our protocol's PDM token by utilizing a global cumulative rate that is updated based on a per-second stability fee for each collateral type. 
 
@@ -351,7 +351,7 @@ The contract would also update the debt of each individual vault in the system b
 
 **GaleriumPot.sol**
 ====================
-* `GaleriumPot.sol <./docs/defi/PROTOCOL.rst>`_
+* `GaleriumPot.sol <./docs/praedium/PROTOCOL.rst>`_
 
 The GaleriumPot contract would track and update the savings rate for our protocol's GALR token, similar to how the Pot contract works for DAI in MakerDAO. This contract would maintain a cumulative interest rate parameter that is updated based on a per-second savings rate. The contract would also keep track of individual user balances and be responsible for distributing the savings interest to each user. 
 
@@ -365,26 +365,26 @@ the Proxy module would also be created to make it easier for users and developer
 
 **DSRManager.sol**
 ===================
-* `DSRManager.sol <./docs/defi/PROTOCOL.rst>`_
+* `DSRManager.sol <./docs/praedium/PROTOCOL.rst>`_
 
 The DSRManager contract would be used to allow service providers to deposit and withdraw GALR into the contract pot, enabling them to start earning the Praedium Savings Rate on a pool of GALR in a single function call. This would be useful for smart contracts integrating DSR functionality in our ecosystem.
 
 **CDPManager.sol**
 ===================
-* `CDPManager.sol <./docs/defi/PROTOCOL.rst>`_
+* `CDPManager.sol <./docs/praedium/PROTOCOL.rst>`_
 
 The CDPManager contract would enable a formalized process for managing Vaults and transferring them between owners in a way that treats them as NFTs. The manager would abstract the Vault usage by a CDPId to make it easier for developers to join collateral to a Vault.
 
 
 **VoteProxy.sol**
 ==================
-* `VoteProxy.sol <./docs/defi/PROTOCOL.rst>`_
+* `VoteProxy.sol <./docs/praedium/PROTOCOL.rst>`_
 
 The VoteProxy contract would facilitate online voting with offline PDM storage. By having a VoteProxy, users would have a linked hot wallet that can pull and push PDM from the proxy’s corresponding cold wallet to DS-Chief, where voting can take place with the online hot wallet. This would allow for two different voting mechanisms and minimize the time that PDM owners need to have their wallet online.
 
 **ProxyActions.sol**
 =====================
-* `ProxyActions.sol <./docs/defi/PROTOCOL.rst>`_
+* `ProxyActions.sol <./docs/praedium/PROTOCOL.rst>`_
 
 The ProxyActions contract would be designed to be used by the Ds-Proxy, which would be owned individually by users to interact more easily with the Uridium Protocol. The DssProxyActions contract would serve as a library for user's ds-proxies, and users would be able to execute functions and parameters via their proxies.
 
@@ -409,7 +409,7 @@ Flash Mint Module
 
 **Flash.sol**
 ==================
-* `Flash.sol <./docs/defi/PROTOCOL.rst>`_
+* `Flash.sol <./docs/praedium/PROTOCOL.rst>`_
 
 We can also implement a Flash module to allow users to mint our stablecoin (Galerium, GALR) up to a limit set by our governance, with the condition that they pay it back in the same transaction with a fee. 
 
@@ -432,13 +432,13 @@ Emergency Shutdown for Partners is a process that allows specific partners to sh
 
 **ESM.sol**
 ==================
-* `ESM.sol <./docs/defi/PROTOCOL.rst>`_
+* `ESM.sol <./docs/praedium/PROTOCOL.rst>`_
 
 In the case of Uridium Protocol, we would need to adapt the emergency shutdown module to work with our ecosystem, which includes Galerium (GALR) as the stablecoin and Praedium (PDM) as the governance token. We would need to develop a set of emergency shutdown procedures that are tailored to our specific needs and that take into account the unique risks associated with our system.
 
 **End.sol**
 ==================
-* `End.sol <./docs/defi/PROTOCOL.rst>`_
+* `End.sol <./docs/praedium/PROTOCOL.rst>`_
 
 The End contract is another critical component of the Maker Protocol that allows the system to be shut down. The End contract is responsible for winding down the system by redeeming all outstanding Dai for its underlying collateral at a fixed price. This price is determined by the Maker Governance community and is designed to ensure that all Dai is fully backed by collateral.
 
