@@ -247,8 +247,33 @@ Praedium (PDM) will give holders a say in the decisions made by the network. Thi
 =================
 * `PraediumToken.sol <./docs/defi/PROTOCOL.rst>`_
 
-This contract is responsible for...
+The Praedium Module contains the Praedium token (PDM), which is an ERC20 token deployed on the Ethereum blockchain. It provides a standard ERC20 token interface with added governance features that allow PDM holders to participate in the decision-making process of the Uridium Protocol.
 
+* Key Functionalities (as defined in the smart contract)
+  
+  * mint: credit tokens at an address whilst simultaneously increasing totalSupply (requires auth).
+  * burn: debit tokens at an address whilst simultaneously decreasing totalSupply (requires auth).
+  * transfer: transfers an amount of tokens to a given address, and MUST fire the Transfer event. This SHOULD throw if the message caller’s account balance does not have enough tokens to spend.
+  * approve: allows _spender to withdraw from your account multiple times, up to the _value amount. If this function is called again it overwrites the current allowance with _value.
+  * increaseAllowance: increase the amount which _spender is still allowed to withdraw from the caller's account.
+  * decreaseAllowance: decrease the amount which _spender is still allowed to withdraw from the caller's account.
+  * transferFrom: transfers an amount of tokens from address _from to address _to, and MUST fire the Transfer event.
+
+* **Key Mechanisms & Concepts**
+
+  * PDM tokens provide governance features for the Uridium Protocol, enabling holders to vote on important decisions such as the addition of new collateral types or changes to the system parameters. PDM holders can stake their tokens in order to vote and earn rewards, providing a mechanism to incentivize participation and community engagement.
+
+  * **Praedium DAO** Praedium DAO is the governance mechanism used to manage the Praedium Protocol. The DAO is a decentralized autonomous organization that is responsible for managing the Praedium Treasury, making decisions related to the addition of new collateral types, and setting system parameters.
+
+* **Failure Modes (Bounds on Operating Conditions & External Risk Factors)**
+
+  * In the event that the Praedium Protocol experiences insolvency or a shortfall in the value of the collateral, the Praedium DAO can autonomously mint new PDM tokens and sell them in exchange for collateral in order to recapitalize the system.
+
+Overall, the Praedium Governance Token is a critical component of the Uridium Protocol, enabling community participation and ensuring the continued stability and growth of the platform.
+
+
+Governance Module
+----------------
 
 **Votes.sol**
 =============
