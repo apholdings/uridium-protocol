@@ -283,14 +283,14 @@ Governance Module
 
 In the Uridium protocol, the governance module is responsible for the governance of the system. The governance token is Praedium (PDM), and it is used for voting on proposals that can impact the protocol. The key mechanisms and concepts of the governance module include:
 
-* Proposal Creation: Anyone can create a proposal to change the parameters of the Uridium protocol, such as adding or removing collateral types, changing the risk parameters, or modifying the system parameters.
+* **Proposal Creation**: Anyone can create a proposal to change the parameters of the Uridium protocol, such as adding or removing collateral types, changing the risk parameters, or modifying the system parameters.
 
-* Voting: Once a proposal is created, the PDM token holders can vote on it using their tokens. The voting process follows a snapshot model, where the number of tokens a user has at the snapshot block determines their voting power.
+* **Voting**: Once a proposal is created, the PDM token holders can vote on it using their tokens. The voting process follows a snapshot model, where the number of tokens a user has at the snapshot block determines their voting power.
 
-* Execution: Once a proposal has received enough votes in favor, it is executed automatically through the smart contract.
+* **Execution**: Once a proposal has received enough votes in favor, it is executed automatically through the smart contract.
 
 
-**Governance Contracts: **
+**Governance Contracts:**
 
 The key contracts in the governance module are Chief, Pause, and Spell contracts. 
 
@@ -328,8 +328,10 @@ Finally, we plan to conduct airdrops of our tokens to help increase awareness an
 Overall, by using a combination of liquidity pools, yield farming, staking, voting, and airdrops, we aim to provide a robust and diverse ecosystem for our tokens, with ample liquidity and opportunities for users to participate and engage with the Uridium Network.
 
 
-Governance
-***********
+
+ICO Stakeholders
+********************
+
 
 ISO Standards
 **************
