@@ -281,17 +281,39 @@ Overall, the Praedium Governance Token is a critical component of the Uridium Pr
 Governance Module
 ----------------
 
-**Votes.sol**
+In the Uridium protocol, the governance module is responsible for the governance of the system. The governance token is Praedium (PDM), and it is used for voting on proposals that can impact the protocol. The key mechanisms and concepts of the governance module include:
+
+* Proposal Creation: Anyone can create a proposal to change the parameters of the Uridium protocol, such as adding or removing collateral types, changing the risk parameters, or modifying the system parameters.
+
+* Voting: Once a proposal is created, the PDM token holders can vote on it using their tokens. The voting process follows a snapshot model, where the number of tokens a user has at the snapshot block determines their voting power.
+
+* Execution: Once a proposal has received enough votes in favor, it is executed automatically through the smart contract.
+
+
+**Governance Contracts: **
+
+The key contracts in the governance module are Chief, Pause, and Spell contracts. 
+
+**Chief.sol**
 =============
-* `Voting.sol <./docs/defi/PROTOCOL.rst>`_
+* `Chief.sol <./docs/defi/PROTOCOL.rst>`_
 
-This contract is responsible for...
+The Chief contract provides a method to elect a "chief" contract via an approval voting system, similar to MakerDAO. 
 
-**Disputes.sol**
-=================
-* `Disputes.sol <./docs/defi/PROTOCOL.rst>`_
+**Pause.sol**
+=============
+* `Pause.sol <./docs/defi/PROTOCOL.rst>`_
 
-This contract is responsible for...
+The Pause contract allows authorized users to schedule function calls that can only be executed once a predetermined waiting period has elapsed. 
+
+**Spell.sol**
+=============
+* `Spell.sol <./docs/defi/PROTOCOL.rst>`_
+
+The Spell contract is an un-owned object that performs one action or series of atomic actions one time only.
+
+
+**Gotchas:** Users should be aware of potential sources of user error, such as the need to trust the identity of the contract rather than the address of the contract, and the fact that there is no way to bypass the delay in the Pause contract.
 
 
 Liquidity Providers
