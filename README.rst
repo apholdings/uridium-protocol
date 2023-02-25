@@ -84,8 +84,6 @@ This contract is responsible for...
 
 This contract is responsible for...
 
-The combination of Praedium (PDM) and Galerium (GALR) will create a well-functioning and transparent ecosystem that provides its users with the tools to securely exchange and manage their assets.
-
 
 Liquidity Providers
 ********************
@@ -97,3 +95,16 @@ In addition to DEXs, we also plan to offer staking programs where users can lock
 Finally, we plan to conduct airdrops of our tokens to help increase awareness and adoption of the Uridium Network. These airdrops will be targeted towards individuals who have shown an interest in our project, as well as those who actively participate in the ecosystem through activities such as trading, staking, and voting.
 
 Overall, by using a combination of liquidity pools, yield farming, staking, voting, and airdrops, we aim to provide a robust and diverse ecosystem for our tokens, with ample liquidity and opportunities for users to participate and engage with the Uridium Network.
+
+
+Governance
+***********
+
+Security
+*********
+
+Microservices
+**************
+
+Microfrontends
+**************
