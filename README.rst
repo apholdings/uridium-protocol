@@ -61,8 +61,30 @@ This contract is responsible for...
 
 This contract is responsible for...
 
-Praedium
--------------
+
+Core Module
+----------------
+
+The core module is the foundation of our decentralized platform and implements the core smart contracts that enable the functioning of our ecosystem. 
+
+It consists of two key contracts: Vat.sol and Spot.sol.
+
+**Vat.sol**
+=============
+* `Vat.sol <./Galerium.rst>`_
+
+Vat.sol is responsible for storing the state of the system and tracking user balances, debt positions, and collateral positions. 
+
+The Vat.sol contract also maintains a ledger of all transactions and manages the issuance and burning of our stablecoin, GALR. It interacts with all other modules of our platform, allowing the system to accurately assess risk and maintain stability.
+
+**Spot.sol**
+=================
+* `Spot.sol <./GaleriumJoin.rst>`_
+
+Spot.sol is responsible for calculating the price of our stablecoin, GALR, based on the value of the underlying collateral in the system. It also manages the liquidation of debt positions when the value of the underlying collateral falls below a certain threshold. This is important to maintain the stability of the system and prevent the emergence of any systemic risks.
+
+Praedium Module
+----------------
 Praedium (PDM) will give holders a say in the decisions made by the network. This governance token will be used to vote on proposals to improve the Uridium Network, and to participate in the management of the network’s finances. 
 
 **Praedium.sol**
