@@ -189,8 +189,8 @@ The Vow can create new GALR by minting it in exchange for collateral, or it can 
 
 These actions are designed to keep the GALR price stable and protect the value of the collateral.
 
-The System Stabilizer Module consists of three contracts: 
-  
+*The System Stabilizer Module consists of three contracts: *
+
 * the Vow, 
   
 * the Flop, 
@@ -217,6 +217,26 @@ The Flop auction contract is used to sell surplus collateral back to the market.
 The Flap auction contract is used to buy additional collateral for the system. The Flap auction begins with an initial bid, and the price gradually increases over time until the auction ends. The winning bidder receives GALR in exchange for the additional collateral.
 
 These auction contracts are designed to be market-based mechanisms for adjusting the supply and demand of GALR and collateral in the system. They are used to keep the GALR stable and maintain the value of the collateral.
+
+
+Oracle Module
+----------------
+
+In the Uridium protocol, the Oracle module plays a crucial role in providing reliable and accurate price data for the various assets used in the protocol. It is responsible for updating the prices of these assets on the blockchain, which are then used in various modules for collateralization, liquidation, and other functions.
+
+Similar to the Maker DAO, we will deploy an oracle module for each collateral type, with the OSM and Median contracts being the core components of the Oracle Module. 
+
+**OSM.sol**
+=================
+* `OSM.sol <./docs/defi/PROTOCOL.rst>`_
+
+The OSM contract (Oracle Security Module) will store the most up-to-date price information for each collateral type and will be used by other modules to determine the value of assets.
+
+**Median.sol**
+=================
+* `Median.sol <./docs/defi/PROTOCOL.rst>`_
+
+The Median contract, on the other hand, will act as an intermediary between the oracles and the OSM by taking the median of the price feeds from multiple oracles to minimize the risk of an incorrect price being used.
 
 
 Praedium Module
