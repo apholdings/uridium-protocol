@@ -102,11 +102,16 @@ Governance
 
 ISO Standards
 **************
-* Information Security management (ISO 27001:2022)
+* Information security, cybersecurity and privacy protection (ISO 27001:2022)
 * Quality management (ISO 9001:2015)
 * Risk management (ISO 31000)
 * Educational management (ISO 21001:2018)
 * Anti-Bribery management (ISO 37001)
+* Business continuity management (ISO 22301:2019)
+* Energy management (ISO 50001:2018)
+* Environmental management systems (ISO 14001:2015)
+* Blockchain and distributed ledger technologies (ISO/DIS 22739)
+* Governance of organizations (ISO/DIS 37004)
 
 Microservices
 **************
