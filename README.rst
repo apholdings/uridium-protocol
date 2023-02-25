@@ -30,7 +30,10 @@ NFT Marketplace
 -------------
 
 .. toctree::
- :maxdepth: 2
+   :maxdepth: 2
+
+   filename1
+   filename2
 
 When a student purchases an NFT representing a course, they will gain access to the course content. The NFT will be stored in their digital wallet, and they can access the course content by interacting with the smart contract associated with the NFT.
 
