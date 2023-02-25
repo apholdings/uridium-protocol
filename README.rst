@@ -457,23 +457,6 @@ Finally, we plan to conduct airdrops of our tokens to help increase awareness an
 Overall, by using a combination of liquidity pools, yield farming, staking, voting, and airdrops, we aim to provide a robust and diverse ecosystem for our tokens, with ample liquidity and opportunities for users to participate and engage with the Uridium Network.
 
 
-
-Initial Token Supply
-*********************
-* 8% was given to early investors, advisors, and the founding team.
-* 10% was allocated to the Uridium Foundation, to fund ongoing development and operations.
-* 10% was sold during a public initial coin offering (ICO) to fund development and create liquidity.
-* 72% was allocated to the Praedium contract, where it could be obtained through a variety of mechanisms, including as rewards for participating in the PDM governance system.
-
-Early Investors
-=================
-- No investors yet
-
-ICO Stakeholders
-=================
-- ICO has not started yet
-
-
 ISO Standards Applied
 **********************
 * Information security management (`ISO 27002:2022 <https://www.iso.org/standard/75652.html>`_)
