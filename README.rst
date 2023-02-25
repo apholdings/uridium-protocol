@@ -47,19 +47,19 @@ This will provide stability to our economy, as well as create a new investment o
 Galerium Module
 ----------------
 
-Galerium (GALR) will be used as a stablecoin within the Uridium Network. This stablecoin will be pegged to the value of a fiat currency, enabling users to transact with confidence, knowing that the value of their assets is stable. 
+The GaleriumToken module in the Uridium protocol is the ERC20 token that represents the stablecoin Galerium (PDM).
 
 **Galerium.sol**
 =================
 * `GaleriumToken.sol <./docs/defi/NFTMARKETPLACE.rst>`_
 
-This contract is responsible for...
+The GaleriumToken contract is similar to the Dai contract in the MakerDAO system, which maintains accounting for external Galerium balances. The key functionalities of the GaleriumToken contract include minting, burning, transferring, and allowing approvals for transfers based on signed messages.
 
 **GaleriumJoin.sol**
 =====================
 * `GaleriumJoin.sol <./docs/defi/NFTMARKETPLACE.rst>`_
 
-This contract is responsible for...
+The GaleriumJoin contract is similar to the DaiJoin contract, which allows users to withdraw their Galerium from the system into a standard ERC20 token. The GaleriumJoin contract is designed to allow the Galerium token to be joined to the Praedium Vat.
 
 
 Core Module
@@ -326,6 +326,7 @@ Flash Mint Module
 
 Emergency Shutdown Module
 --------------------------
+
 
 Liquidity Providers
 ********************
