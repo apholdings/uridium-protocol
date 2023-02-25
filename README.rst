@@ -90,20 +90,22 @@ Collateral Module
 The Collateral Module is a key component of the Uridium Network's ecosystem. It is responsible for managing the adapters and auction contracts for each specific collateral type. Similar to the Collateral Module in MakerDAO's system, it contains a join contract (join.sol) and a clip contract (clip.sol) for each new collateral type added to the Vat.
 
 
+The join contract (join.sol) allows standard ERC20 tokens to be deposited for use with the system. 
+
 **Join.sol**
 =================
 * `Join.sol <./docs/defi/NFTMARKETPLACE.rst>`_
 
-The join contract (join.sol) allows standard ERC20 tokens to be deposited for use with the system. 
 
 **Join.sol** has three variations: GemJoin, ETHJoin, and GalrJoin. GemJoin allows ERC20 tokens to be deposited, ETHJoin allows native Ether to be used, and GalrJoin allows users to withdraw their GALR from the system. Each variation of Join.sol is created specifically to allow the given token type to be join'ed to the Vat, and therefore, each contract has slightly different logic to account for the different types of tokens within the system.
 
+
+The clip contract (clip.sol) allows users to enter auctions for a specific collateral type.
 
 **Clip.sol**
 =================
 * `Clip.sol <./docs/defi/NFTMARKETPLACE.rst>`_
 
-The clip contract (clip.sol) allows users to enter auctions for a specific collateral type.
 
 **Clip.sol**, on the other hand, is responsible for managing auctions of collateral in the case of a liquidation event. Specifically, it allows users to purchase collateral from the Vat by bidding on lots of the collateral. The lots are initially priced at a discount to incentivize bidders, but as the auction progresses, the discount decreases. If the lot is not purchased, it is passed to the next auction with a slightly lower price, and this process continues until the lot is sold. 
 
