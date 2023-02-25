@@ -189,13 +189,13 @@ The Vow can create new GALR by minting it in exchange for collateral, or it can 
 
 These actions are designed to keep the GALR price stable and protect the value of the collateral.
 
-* The System Stabilizer Module consists of three contracts: 
+The System Stabilizer Module consists of three contracts: 
   
-  * the Vow, 
+* the Vow, 
   
-  * the Flop, 
+* the Flop, 
   
-  * the Flap. 
+* the Flap. 
 
 
 **Vow.sol**
