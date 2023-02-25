@@ -356,3 +356,5 @@ ISO Standards Applied
 * Environmental management systems (`ISO 14001:2015 <https://www.iso.org/standard/60857.html>`_)
 * Blockchain and distributed ledger technologies (`ISO/DIS 22739 <https://www.iso.org/standard/82208.html>`_)
 * Governance of organizations (`ISO/DIS 37004 <https://www.iso.org/standard/65037.html>`_)
+* `Governance of organizations (ISO/DIS 37004) <https://www.iso.org/standard/69325.html>`_
+   :target: _blank
