@@ -23,23 +23,17 @@ Sellers will be able to create a new NFT for each course they create, providing 
 
 **NFT.sol**
 =================
-* `Contract <./docs/defi/NFTS.rst>`_
+* `NFT.sol <./docs/defi/NFTS.rst>`_
 
 
 NFT Marketplace
--------------
-
-.. toctree::
-   :maxdepth: 2
-
-   filename1
-   filename2
+----------------
 
 When a student purchases an NFT representing a course, they will gain access to the course content. The NFT will be stored in their digital wallet, and they can access the course content by interacting with the smart contract associated with the NFT.
 
 **NFTMarketplace.sol**
-=================
-* `Contract <./docs/defi/NFTMARKETPLACE.rst>`_
+======================
+* `NFTMarketplace.sol <./docs/defi/NFTMARKETPLACE.rst>`_
 
 Ecosystem
 **********
@@ -56,14 +50,14 @@ Galerium Module
 Galerium (GALR) will be used as a stablecoin within the Uridium Network. This stablecoin will be pegged to the value of a fiat currency, enabling users to transact with confidence, knowing that the value of their assets is stable. 
 
 **Galerium.sol**
-=============
-* `Contract <./Galerium.rst>`_
+=================
+* `GaleriumToken.sol <./docs/defi/NFTMARKETPLACE.rst>`_
 
 This contract is responsible for...
 
 **GaleriumJoin.sol**
-=================
-* `GContract <./GaleriumJoin.rst>`_
+=====================
+* `GaleriumJoin.sol <./docs/defi/NFTMARKETPLACE.rst>`_
 
 This contract is responsible for...
 
@@ -77,7 +71,7 @@ It consists of two key contracts: Vat.sol and Spot.sol.
 
 **Vat.sol**
 =============
-* `Contract <./Galerium.rst>`_
+* `Vat.sol <./docs/defi/NFTMARKETPLACE.rst>`_
 
 Vat.sol is responsible for storing the state of the system and tracking user balances, debt positions, and collateral positions. 
 
@@ -85,15 +79,37 @@ The Vat.sol contract also maintains a ledger of all transactions and manages the
 
 **Spot.sol**
 =================
-* `Contract <./GaleriumJoin.rst>`_
+* `Spot.sol <./docs/defi/NFTMARKETPLACE.rst>`_
 
 Spot.sol is responsible for calculating the price of our stablecoin, GALR, based on the value of the underlying collateral in the system. It also manages the liquidation of debt positions when the value of the underlying collateral falls below a certain threshold. This is important to maintain the stability of the system and prevent the emergence of any systemic risks.
 
 
 Collateral Module
-----------------
+------------------
+
+The Collateral Module is a key component of the Uridium Network's ecosystem. It is responsible for managing the adapters and auction contracts for each specific collateral type. Similar to the Collateral Module in MakerDAO's system, it contains a join contract (join.sol) and a clip contract (clip.sol) for each new collateral type added to the Vat.
 
 
+**Join.sol**
+=================
+* `Join.sol <./docs/defi/NFTMARKETPLACE.rst>`_
+
+The join contract (join.sol) allows standard ERC20 tokens to be deposited for use with the system. 
+
+**Join.sol** has three variations: GemJoin, ETHJoin, and GalrJoin. GemJoin allows ERC20 tokens to be deposited, ETHJoin allows native Ether to be used, and GalrJoin allows users to withdraw their GALR from the system. Each variation of Join.sol is created specifically to allow the given token type to be join'ed to the Vat, and therefore, each contract has slightly different logic to account for the different types of tokens within the system.
+
+
+**Clip.sol**
+=================
+* `Clip.sol <./docs/defi/NFTMARKETPLACE.rst>`_
+
+The clip contract (clip.sol) allows users to enter auctions for a specific collateral type.
+
+**Clip.sol**, on the other hand, is responsible for managing auctions of collateral in the case of a liquidation event. Specifically, it allows users to purchase collateral from the Vat by bidding on lots of the collateral. The lots are initially priced at a discount to incentivize bidders, but as the auction progresses, the discount decreases. If the lot is not purchased, it is passed to the next auction with a slightly lower price, and this process continues until the lot is sold. 
+
+clip.sol has been designed to ensure that liquidations are conducted in a fair and efficient manner.
+
+By using the Collateral Module, the Uridium Network can support a wide variety of collateral types, allowing users to interact with the system using their preferred tokens. This flexibility is key to the success of our ecosystem and will ensure that users have the freedom to choose which assets they wish to use as collateral.
 
 
 Praedium Module
@@ -101,7 +117,7 @@ Praedium Module
 Praedium (PDM) will give holders a say in the decisions made by the network. This governance token will be used to vote on proposals to improve the Uridium Network, and to participate in the management of the network’s finances. 
 
 **Praedium.sol**
-=============
+=================
 * `Contract <./docs/defi/PROTOCOL.rst>`_
 
 This contract is responsible for...
@@ -114,7 +130,7 @@ This contract is responsible for...
 This contract is responsible for...
 
 **Disputes.sol**
-=============
+=================
 * `Contract <./docs/defi/PROTOCOL.rst>`_
 
 This contract is responsible for...
