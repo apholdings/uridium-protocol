@@ -344,15 +344,15 @@ ICO Stakeholders
 ********************
 
 
-ISO Standards
-**************
-* Information security management (`ISO 27001:2022 <https://www.iso.org/standard/75652.html>`_)
+ISO Standards Applied
+**********************
+* Information security management (`ISO 27002:2022 <https://www.iso.org/standard/75652.html>`_)
 * Quality management (`ISO 9001:2015 <https://www.iso.org/standard/62085.html>`_)
-* Risk management (`ISO 31000 <https://www.iso.org/standard/65694.html>`_)
-* Educational management (`ISO 21001:2018 <https://www.iso.org/standard/72096.html>`_)
-* Anti-Bribery management (`ISO 37001 <https://www.iso.org/standard/65003.html>`_)
-* Business continuity management (`ISO 22301:2019 <https://www.iso.org/standard/73756.html>`_)
-* Energy management (`ISO 50001:2018 <https://www.iso.org/standard/65683.html>`_)
+* Risk management (`ISO 31000:2018 <https://www.iso.org/standard/65694.html>`_)
+* Management systems for educational organizations (`ISO 21001:2018 <https://www.iso.org/standard/66266.html>`_)
+* Anti-Bribery management (`ISO 37001:2016 <https://www.iso.org/standard/65034.html>`_)
+* Business continuity management (`ISO 22301:2019 <https://www.iso.org/standard/75106.html>`_)
+* Energy management (`ISO 50001:2018 <https://www.iso.org/standard/51297.html>`_)
 * Environmental management systems (`ISO 14001:2015 <https://www.iso.org/standard/60857.html>`_)
-* Blockchain and distributed ledger technologies (`ISO/DIS 22739 <https://www.iso.org/standard/82748.html>`_)
-* Governance of organizations (`ISO/DIS 37004 <https://www.iso.org/standard/69666.html>`_)
+* Blockchain and distributed ledger technologies (`ISO/DIS 22739 <https://www.iso.org/standard/82208.html>`_)
+* Governance of organizations (`ISO/DIS 37004 <https://www.iso.org/standard/65037.html>`_)
