@@ -464,13 +464,6 @@ Initial Token Supply
 * 10% was sold during a public initial coin offering (ICO) to fund development and create liquidity.
 * 72% was allocated to the Praedium contract, where it could be obtained through a variety of mechanisms, including as rewards for participating in the PDM governance system.
 
-Early Investors
-=================
-No investors yet
-
-ICO Stakeholders
-=================
-ICO has not started yet
 
 ISO Standards Applied
 **********************
