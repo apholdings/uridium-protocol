@@ -458,8 +458,20 @@ Overall, by using a combination of liquidity pools, yield farming, staking, voti
 
 
 
+Initial Token Supply
+*********************
+* 8% was given to early investors, advisors, and the founding team.
+* 10% was allocated to the Uridium Foundation, to fund ongoing development and operations.
+* 10% was sold during a public initial coin offering (ICO) to fund development and create liquidity.
+* 72% was allocated to the Praedium contract, where it could be obtained through a variety of mechanisms, including as rewards for participating in the PDM governance system.
+
+Early Investors
+=================
+- No investors yet
+
 ICO Stakeholders
-********************
+=================
+- ICO has not started yet
 
 
 ISO Standards Applied
