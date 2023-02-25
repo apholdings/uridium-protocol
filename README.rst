@@ -312,9 +312,20 @@ The Pause contract allows authorized users to schedule function calls that can o
 
 The Spell contract is an un-owned object that performs one action or series of atomic actions one time only.
 
-
 **Gotchas:** Users should be aware of potential sources of user error, such as the need to trust the identity of the contract rather than the address of the contract, and the fact that there is no way to bypass the delay in the Pause contract.
 
+
+Rates Module
+----------------
+
+Proxy Module
+----------------
+
+Flash Mint Module
+------------------
+
+Emergency Shutdown Module
+--------------------------
 
 Liquidity Providers
 ********************
@@ -335,16 +346,16 @@ ICO Stakeholders
 
 ISO Standards
 **************
-* Information security, cybersecurity and privacy protection (ISO 27001:2022)
-* Quality management (ISO 9001:2015)
-* Risk management (ISO 31000)
-* Educational management (ISO 21001:2018)
-* Anti-Bribery management (ISO 37001)
-* Business continuity management (ISO 22301:2019)
-* Energy management (ISO 50001:2018)
-* Environmental management systems (ISO 14001:2015)
-* Blockchain and distributed ledger technologies (ISO/DIS 22739)
-* Governance of organizations (ISO/DIS 37004)
+* Information security, cybersecurity and privacy protection (`ISO 27001:2022 <https://www.iso.org/standard/75839.html>`_)
+* Quality management (`ISO 9001:2015 <https://www.iso.org/standard/62085.html>`_)
+* Risk management (`ISO 31000 <https://www.iso.org/standard/65694.html>`_)
+* Educational management (`ISO 21001:2018 <https://www.iso.org/standard/72096.html>`_)
+* Anti-Bribery management (`ISO 37001 <https://www.iso.org/standard/65003.html>`_)
+* Business continuity management (`ISO 22301:2019 <https://www.iso.org/standard/73756.html>`_)
+* Energy management (`ISO 50001:2018 <https://www.iso.org/standard/65683.html>`_)
+* Environmental management systems (`ISO 14001:2015 <https://www.iso.org/standard/60857.html>`_)
+* Blockchain and distributed ledger technologies (`ISO/DIS 22739 <https://www.iso.org/standard/82748.html>`_)
+* Governance of organizations (`ISO/DIS 37004 <https://www.iso.org/standard/69666.html>`_)
 
 Microservices
 **************
