@@ -102,9 +102,11 @@ Governance
 
 ISO Standards
 **************
-* Security
-* Quality
-* Risk management
+* Information Security management system
+* Quality management system
+* Risk management system
+* Educational management system
+* Anti-Bribery management system
 
 Microservices
 **************
