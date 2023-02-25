@@ -100,8 +100,11 @@ Overall, by using a combination of liquidity pools, yield farming, staking, voti
 Governance
 ***********
 
-Security
-*********
+ISO Standards
+**************
+* Security
+* Quality
+* Risk management
 
 Microservices
 **************
