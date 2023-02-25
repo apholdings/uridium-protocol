@@ -102,11 +102,11 @@ Governance
 
 ISO Standards
 **************
-* Information Security management system
-* Quality management system
-* Risk management system
-* Educational management system
-* Anti-Bribery management system
+* Information Security management (ISO 27001:2022)
+* Quality management (ISO 9001:2015)
+* Risk management (ISO 31000)
+* Educational management (ISO 21001:2018)
+* Anti-Bribery management (ISO 37001)
 
 Microservices
 **************
