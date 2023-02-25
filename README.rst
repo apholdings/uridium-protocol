@@ -29,9 +29,12 @@ Sellers will be able to create a new NFT for each course they create, providing 
 NFT Marketplace
 -------------
 
+.. toctree::
+ :maxdepth: 2
+
 When a student purchases an NFT representing a course, they will gain access to the course content. The NFT will be stored in their digital wallet, and they can access the course content by interacting with the smart contract associated with the NFT.
 
-`**NFTMarketplace.sol**<./docs/defi/NFTMARKETPLACE.rst>`_
+**NFTMarketplace.sol**
 =================
 * `Contract <./docs/defi/NFTMARKETPLACE.rst>`_
 
