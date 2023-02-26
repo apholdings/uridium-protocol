@@ -58,9 +58,11 @@ contract Galerium is ERC20, ERC20Burnable, Pausable,ReentrancyGuard, AccessContr
     function push(address usr, uint wad) external { // Sends GALR tokens to User
         transferFrom(msg.sender, usr, wad);
     }
+
     function pull(address usr, uint wad) external { // Pulls GALR tokens from user
         transferFrom(usr, msg.sender, wad);
     }
+    
     function move(address src, address dst, uint wad) external { // Moves tokens From Src to Dst
         transferFrom(src, dst, wad);
     }

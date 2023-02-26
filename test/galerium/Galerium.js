@@ -26,6 +26,10 @@ describe("Galerium Contract Tests", function () {
         malicious = await MaliciousContract.deploy(galerium.address);
         // Approve the malicious contract to transfer 100 tokens
         await galerium.approve(malicious.address, 100);
+
+        // Mint GALR and send some to ADress1
+        await galerium.mint(galerium.address, 1000)
+        await galerium.mint(addr1.address, 1000)
     });
 
     describe("Deployment", function () {
@@ -94,4 +98,39 @@ describe("Galerium Contract Tests", function () {
         });
     });
 
+    describe("Transactions", function () { 
+        it("Should transfer tokens between accounts", async function () {
+            // Get Address1 Initial Balance
+            const addr1InitialBalance = await galerium.balanceOf(addr1.address);
+            expect(addr1InitialBalance).to.equal(1000);
+            
+            // // Transfer 50 tokens from addr1 to addr2
+            await galerium.connect(addr1).transfer(addr2.address,100 );
+            const addr2Balance = await galerium.balanceOf(addr2.address);
+            expect(addr2Balance).to.equal(100);
+        });
+
+        it("Should fail if sender doesn't have enough tokens", async function () {
+            const initialAddr1Balance = await galerium.balanceOf(addr1.address);
+            // Try to send 1 token from addr1 (0 tokens) to addr1 (1000 tokens).
+            // 'require' will evaluate false and revert the transaction.
+            await expect(
+                galerium.connect(owner).transfer(addr1.address, 1)
+            ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
+
+            // addr1 balance should not change.
+            expect(await galerium.balanceOf(addr1.address)).to.equal(initialAddr1Balance);
+        });
+    });
+
+    describe("Minting and Burning", function () { 
+        it("Should allow a minter to mint tokens", async function () {
+            // Mint 100 tokens to addr1
+            await galerium.mint(addr2.address, 100);
+
+            // Check addr1's balance
+            const addr2Balance = await galerium.balanceOf(addr2.address);
+            expect(addr2Balance).to.equal(100);
+        });
+    });
  });
