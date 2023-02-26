@@ -4,8 +4,6 @@ const { ethers } = require("hardhat");
 
 describe("Galerium Contract Tests", function () {
     let Token;
-    let MaliciousContract;
-    let malicious;
     let galerium;
     let owner;
     let addr1;
@@ -21,11 +19,6 @@ describe("Galerium Contract Tests", function () {
         
         await galerium.grantRole(await galerium.PAUSER_ROLE(), owner.address);
         await galerium.grantRole(await galerium.MINTER_ROLE(), owner.address);
-        
-        MaliciousContract = await ethers.getContractFactory("MCT");
-        malicious = await MaliciousContract.deploy(galerium.address);
-        // Approve the malicious contract to transfer 100 tokens
-        await galerium.approve(malicious.address, 100);
 
         // Mint GALR and send some to ADress1
         await galerium.mint(galerium.address, 1000)
@@ -33,12 +26,15 @@ describe("Galerium Contract Tests", function () {
     });
 
     describe("Deployment", function () {
-        it("should return the correct name", async function () {
+        it("Should return the correct name", async function () {
           expect(await galerium.name()).to.equal("Galerium");
         });
       
-        it("should return the correct symbol", async function () {
+        it("Should return the correct symbol", async function () {
           expect(await galerium.symbol()).to.equal("GALR");
+        });
+        it("Should have 1000 tokens", async function () {
+          expect(await galerium.balanceOf(galerium.address)).to.equal(1000);
         });
     });
 
@@ -131,6 +127,114 @@ describe("Galerium Contract Tests", function () {
             // Check addr1's balance
             const addr2Balance = await galerium.balanceOf(addr2.address);
             expect(addr2Balance).to.equal(100);
+        });
+
+        it("Should not allow a non-minter to mint tokens", async function () {
+            // Try to mint 100 tokens to addr1 from a non-minter account
+            await expect(
+            galerium.connect(addr2).mint(addr2.address, 100)
+            ).to.be.revertedWith(/AccessControl: account 0x[0-9a-fA-F]{40} is missing role 0x[0-9a-fA-F]{64}/);
+
+            // Check addr1's balance (should still be 0)
+            const addr2Balance = await galerium.balanceOf(addr2.address);
+            expect(addr2Balance).to.equal(0);
+        });
+
+        it("Should not allow a user to burn more tokens than they have", async function () {
+            // Mint 100 tokens to addr1
+            await galerium.mint(addr2.address, 100);
+
+            // Try to burn 150 tokens from addr1
+            await expect(
+            galerium.connect(addr2).burn(150)
+            ).to.be.revertedWith("Galerium: burn amount exceeds balance");
+
+            // Check addr1's balance (should still be 100)
+            const addr2Balance = await galerium.balanceOf(addr2.address);
+            expect(addr2Balance).to.equal(100);
+        });
+    });
+
+    describe("Aliases", function () { 
+        it("Push Funds from X to Y", async function () { 
+            // addr1 will represent DS Chief. DS Chief is custodian forr Our protocol
+            const addr1InitialBalance = await galerium.balanceOf(addr1.address);
+            expect(addr1InitialBalance).to.equal(1000);
+
+            // addr2 will represent Vat.
+            const addr2InitialBalance = await galerium.balanceOf(addr2.address);
+            expect(addr2InitialBalance).to.equal(0);
+
+            // DS Chief Pushes to Vat
+            // Define msg.sender, usr, wad
+            const amount = 100;
+            
+            // Alowance
+            // Approve DS Chief to spend 100 tokens on behalf of Vat.
+            await galerium.connect(addr1).approve(addr1.address, amount);
+            // Push
+            // DS Chief Pushes 100 tokens to Vat.
+            await galerium.connect(addr1).push(addr2.address, amount);
+
+            // Check that balances were updated correctly.
+            const addr1Balance = await galerium.balanceOf(addr1.address);
+            expect(addr1Balance).to.equal(900);
+
+            const addr2Balance = await galerium.balanceOf(addr2.address);
+            expect(addr2Balance).to.equal(100);
+        });
+
+        it("Pull Funds from Y to X", async function () { 
+            // addr1 will represent DS Chief. DS Chief is custodian forr Our protocol
+            const addr1InitialBalance = await galerium.balanceOf(addr1.address);
+            expect(addr1InitialBalance).to.equal(1000);
+
+            // addr2 will represent Vat.
+            const addr2InitialBalance = await galerium.balanceOf(addr2.address);
+            expect(addr2InitialBalance).to.equal(0);
+
+            // VAT Pulls from DS CHIEF
+            // Define msg.sender, usr, wad
+            const amount = 100;
+            
+            // Alowance
+            // Approve VAT to pull 100 tokens on behalf of Vat.
+            await galerium.connect(addr1).approve(addr2.address, amount);
+            // Push
+            // DS Chief Pushes 100 tokens to Vat.
+            await galerium.connect(addr2).pull(addr1.address, amount);
+
+            // Check that balances were updated correctly.
+            const addr1Balance = await galerium.balanceOf(addr1.address);
+            expect(addr1Balance).to.equal(900);
+
+            const addr2Balance = await galerium.balanceOf(addr2.address);
+            expect(addr2Balance).to.equal(100);
+        });
+
+
+        it("Move Funds Addr1 to Addr2 using Owner as mediator", async function () {
+            // Get Address1 Initial Balance
+            const addr1InitialBalance = await galerium.balanceOf(addr1.address);
+            expect(addr1InitialBalance).to.equal(1000);
+
+            const addr2InitialBalance = await galerium.balanceOf(addr2.address);
+            expect(addr2InitialBalance).to.equal(0);
+
+            // Approve Owner to Spend 100 tokens on behalf of Addr1.
+            await galerium.connect(addr1).approve(owner.address, 100)
+
+            // Move 50 tokens from addr1 to addr2 using transferFrom.
+            await galerium.connect(owner).move(addr1.address, addr2.address, 100)
+
+            // Addr1 Should have 100 less tokens
+            expect(
+               await galerium.balanceOf(addr1.address)
+            ).to.be.equal(900);
+            // Addr2 Should have 100 less tokens
+            expect(
+               await galerium.balanceOf(addr2.address)
+            ).to.be.equal(100);
         });
     });
  });
