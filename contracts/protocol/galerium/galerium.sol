@@ -7,34 +7,45 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20FlashMint.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/draft-ERC20Permit.sol";
+
+
+import "./lib.sol";
 
 /// @custom:security-contact security@boomslag.com
-contract Galerium is ERC20, ERC20Burnable, Pausable,ReentrancyGuard, AccessControl, ERC20FlashMint {
+contract Galerium is ERC20, ERC20Burnable, Pausable,ReentrancyGuard, AccessControl, ERC20FlashMint, ERC20Permit, DSNote {
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
+    // --- EIP712 niceties ---
+    bytes32 public constant PERMIT_TYPEHASH = keccak256(
+        "Permit(address holder,address spender,uint256 nonce,uint256 expiry,bool allowed)"
+    );
+
     constructor() 
-    ERC20("Galerium", "GALR") 
+    ERC20("Galerium", "GALR")
+    ERC20Permit("Galerium")
     {        
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(PAUSER_ROLE, msg.sender);
         _grantRole(MINTER_ROLE, msg.sender);
     }
 
-    function pause() public onlyRole(PAUSER_ROLE) {
+    function pause() public note onlyRole(PAUSER_ROLE) {
         _pause();
     }
 
-    function unpause() public onlyRole(PAUSER_ROLE) {
+    function unpause() public note onlyRole(PAUSER_ROLE) {
         _unpause();
     }
 
-    function mint(address usr, uint256 wad) public onlyRole(MINTER_ROLE) {
+    function mint(address usr, uint256 wad) public note onlyRole(MINTER_ROLE) {
         _mint(usr, wad);
         emit Transfer(address(0), usr, wad);
     }
 
-    function burn(uint256 amount) public virtual override
+    function burn(uint256 amount) public virtual override 
+        note
         whenNotPaused
         nonReentrant
      {
@@ -55,7 +66,7 @@ contract Galerium is ERC20, ERC20Burnable, Pausable,ReentrancyGuard, AccessContr
     }
 
     // --- Alias ---
-    function push(address usr, uint wad) external { // Sends GALR tokens to User
+    function push(address usr, uint wad) external {
         transferFrom(msg.sender, usr, wad);
     }
 
@@ -66,4 +77,5 @@ contract Galerium is ERC20, ERC20Burnable, Pausable,ReentrancyGuard, AccessContr
     function move(address src, address dst, uint wad) external { // Moves tokens From Src to Dst
         transferFrom(src, dst, wad);
     }
+
 }
