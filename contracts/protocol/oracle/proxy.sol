@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: SPDX
 pragma solidity ^0.8.9;
 
-import "./Oracle.sol";
+import "./oracle.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
-
 
 contract Proxy is AccessControl {
 
@@ -18,11 +17,16 @@ contract Proxy is AccessControl {
         oracle = _oracle;
     }
 
-    function getLatestEURUSDPrice() public view returns (int) {
-        return Oracle(oracle).getLatestEURUSDPrice();
+    function read() public view returns (int) {
+        return Oracle(oracle).read();
     }
 
-    function getLatestETHUSDPrice() public view returns (int) {
-        return Oracle(oracle).getLatestETHUSDPrice();
+    function peek() public view returns (uint256,bool) {
+        return Oracle(oracle).peek();
     }
+    
+    function poke() public {
+        Oracle(oracle).poke();
+    }
+
 }
