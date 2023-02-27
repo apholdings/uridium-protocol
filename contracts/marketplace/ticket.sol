@@ -55,7 +55,7 @@ contract Ticket is ERC1155, AccessControl, Pausable, ERC1155Supply, PaymentSplit
         emit Start();
     }
 
-    function stkMint(uint256 id, uint256 qty)
+    function stkCreate(uint256 id, uint256 qty)
         public
         payable
         onlyRole(STK_ROLE)
@@ -66,7 +66,7 @@ contract Ticket is ERC1155, AccessControl, Pausable, ERC1155Supply, PaymentSplit
         _mint(msg.sender, id, qty, "");
     }
     
-    function mint(uint256 id, uint256 qty)
+    function create(uint256 id, uint256 qty)
         public
         payable
     {

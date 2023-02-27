@@ -48,7 +48,7 @@ contract Booth is ReentrancyGuard {
     }
 
     // Make item to offer on the marketplace
-    function makeItem(IERC1155 _ticket, uint _tokenId, uint _price, uint _amount) external nonReentrant {
+    function sell(IERC1155 _ticket, uint _tokenId, uint _price, uint _amount) external nonReentrant {
         require(_price > 0, "Price must be greater than zero");
         // increment itemCount
         itemCount ++;
@@ -75,7 +75,7 @@ contract Booth is ReentrancyGuard {
         );
     }
 
-    function purchaseItem(uint _itemId) external payable nonReentrant {
+    function buy(uint _itemId) external payable nonReentrant {
         uint _totalPrice = getTotalPrice(_itemId);
         Item storage item = items[_itemId];
         require(_itemId > 0 && _itemId <= itemCount, "item doesn't exist");
