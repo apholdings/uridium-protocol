@@ -18,6 +18,7 @@ contract Token is ERC20, Pausable, AccessControl, ReentrancyGuard {
     ERC20("Praedium", "PDM") 
     {
         _mint(msg.sender, 500000 * 10 ** decimals());
+
         maxSupply = _maxSupply * (10 ** decimals());
         
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -25,19 +26,53 @@ contract Token is ERC20, Pausable, AccessControl, ReentrancyGuard {
         _grantRole(MINTER_ROLE, msg.sender);
     }
 
-    function pause() public onlyRole(PAUSER_ROLE) {
+    event Mint(address indexed guy, uint wad);
+    event Burn(address indexed guy, uint wad);
+    event Stop();
+    event Start();
+
+    function stop() public onlyRole(PAUSER_ROLE) {
         _pause();
+        emit Stop();
     }
 
-    function unpause() public onlyRole(PAUSER_ROLE) {
+    function start() public onlyRole(PAUSER_ROLE) {
         _unpause();
+        emit Start();
     }
 
-    function mint(address to, uint256 amount) public onlyRole(MINTER_ROLE) {
-        uint256 newTotalSupply = totalSupply() + amount;
-        require(newTotalSupply <= maxSupply, "Exceeds max supply");
-        _mint(to, amount);
+    function approve(address guy, uint256 wad) public virtual override returns (bool) {
+        address owner = _msgSender();
+        _approve(owner, guy, wad);
+        emit Approval(owner, guy, wad);
+        return true;
     }
+
+    function mint(address guy, uint256 wad) public onlyRole(MINTER_ROLE) {
+        uint256 newTotalSupply = totalSupply() + wad;
+        require(newTotalSupply <= maxSupply, "Exceeds max supply");
+        emit Mint(guy, wad);
+        _mint(guy, wad);
+    }
+
+    function burn(uint256 wad) public virtual {
+        emit Burn(msg.sender, wad);
+        _burn(_msgSender(), wad);
+    }
+
+    // --- Alias ---
+    function push(address usr, uint wad) external {
+        transferFrom(msg.sender, usr, wad);
+    }
+
+    function pull(address usr, uint wad) external { // Pulls GALR tokens from user
+        transferFrom(usr, msg.sender, wad);
+    }
+    
+    function move(address src, address dst, uint wad) external { // Moves tokens From Src to Dst
+        transferFrom(src, dst, wad);
+    }
+
 
     function _beforeTokenTransfer(address from, address to, uint256 amount)
         internal
@@ -46,6 +81,8 @@ contract Token is ERC20, Pausable, AccessControl, ReentrancyGuard {
         override
     {
         require(to != address(0) || totalSupply() <= maxSupply, "Cannot transfer to zero address after max supply reached");
+
+        emit Transfer(from, to, amount);
         super._beforeTokenTransfer(from, to, amount);
     }
 }
