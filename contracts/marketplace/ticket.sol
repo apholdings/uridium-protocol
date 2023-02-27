@@ -14,21 +14,22 @@ contract Ticket is ERC1155, AccessControl, Pausable, ERC1155Supply, PaymentSplit
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant STK_ROLE = keccak256("STK_ROLE");
 
-    uint256 public mintPrice = 0.01 ether;
-    uint256 public stkMintPrice = 0.001 ether;
-    uint256 public currentSupply;
-    uint256 public ticketSupply;
+    uint256 public price;
 
     uint256 public platformShare = 10;
     uint256 public sellerShare = 90;
 
     constructor(
+        // uint256 _ticketSupply,
+        uint256 _price,
         address[] memory _payees,
         uint256[] memory _shares
     ) 
     ERC1155("https://boomslag.com/courses/{id}")
     PaymentSplitter(_payees, _shares)
     {
+        price = _price;
+
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(URI_SETTER_ROLE, msg.sender);
         _grantRole(PAUSER_ROLE, msg.sender);
@@ -54,24 +55,13 @@ contract Ticket is ERC1155, AccessControl, Pausable, ERC1155Supply, PaymentSplit
         _unpause();
         emit Start();
     }
-
-    function stkCreate(uint256 id, uint256 qty)
-        public
-        payable
-        onlyRole(STK_ROLE)
-    {
-        require(msg.value >= stkMintPrice * qty, "Not Enough ETH to Create NFT");
-        require(totalSupply(id) + qty <= ticketSupply, "NFT Out of Stock");
-        emit Mint(id, qty);
-        _mint(msg.sender, id, qty, "");
-    }
     
-    function create(uint256 id, uint256 qty)
+    function buy(uint256 id, uint256 qty)
         public
         payable
     {
-        require(msg.value >= mintPrice * qty, "Not Enough ETH to Create NFT");
-        require(totalSupply(id) + qty <= ticketSupply, "NFT Out of Stock");
+        require(msg.value >= price * qty, "Not Enough ETH to Buy NFT");
+        // require(totalSupply(id) + qty <= ticketSupply, "NFT Out of Stock");
         emit Mint(id, qty);
         _mint(msg.sender, id, qty, "");
     }

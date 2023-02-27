@@ -3,6 +3,7 @@ pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
+import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 
 contract Booth is ReentrancyGuard {
     // Variables
@@ -47,13 +48,14 @@ contract Booth is ReentrancyGuard {
         feePercent = _feePercent;
     }
 
+
     // Make item to offer on the marketplace
     function sell(IERC1155 _ticket, uint _tokenId, uint _price, uint _amount) external nonReentrant {
         require(_price > 0, "Price must be greater than zero");
         // increment itemCount
         itemCount ++;
         // transfer Ticket (NFT)
-        _ticket.safeTransferFrom(msg.sender, address(this), _tokenId, _amount, "");
+        _ticket.safeTransferFrom(msg.sender, address(this), _tokenId, _amount, "0x");
         // add new item to items mapping
         items[itemCount] = Item (
             itemCount,
@@ -102,5 +104,13 @@ contract Booth is ReentrancyGuard {
 
     function getTotalPrice(uint _itemId) view public returns(uint){
         return((items[_itemId].price*(100 + feePercent))/100);
+    }
+
+    function onERC1155Received(address operator, address from, uint256 id, uint256 value, bytes memory data) public pure returns (bytes4) {
+        return this.onERC1155Received.selector;
+    }
+
+    function onERC1155BatchReceived(address operator, address from, uint256[] memory ids, uint256[] memory values, bytes memory data) public pure returns (bytes4) {
+        return this.onERC1155BatchReceived.selector;
     }
 }
