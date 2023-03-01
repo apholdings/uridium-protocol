@@ -153,7 +153,7 @@ describe("Galerium Contract Tests", function () {
             const addr2Balance = await galerium.balanceOf(addr2.address);
             expect(addr2Balance).to.equal(100);
         });
-    });
+    }); 
 
     describe("Aliases", function () { 
         it("Push Funds from X to Y", async function () { 

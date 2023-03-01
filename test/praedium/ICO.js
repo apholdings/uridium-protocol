@@ -8,6 +8,7 @@ describe("ICO for Praedium Contract Tests", function () {
     let ICOContract;
     let maxIcoSupply = ethers.utils.parseEther("100557");
     let totalSupply = ethers.utils.parseEther("1005577");
+    let initialSupply = ethers.utils.parseEther("724015");
 
     let owner, addr1, addr2, pauser, minter;
 
@@ -15,7 +16,7 @@ describe("ICO for Praedium Contract Tests", function () {
         [owner, addr1, addr2, pauser, minter] = await ethers.getSigners();
         // Deploy Praedium token
         Token = await ethers.getContractFactory("Token");
-        praediumToken = await Token.deploy(totalSupply);
+        praediumToken = await Token.deploy(initialSupply,totalSupply);
         await praediumToken.deployed();
         await praediumToken.grantRole(await praediumToken.PAUSER_ROLE(), owner.address);
         await praediumToken.grantRole(await praediumToken.MINTER_ROLE(), owner.address);
@@ -24,8 +25,10 @@ describe("ICO for Praedium Contract Tests", function () {
         ico = await ICOContract.deploy(praediumToken.address, maxIcoSupply);
         await ico.grantRole(await ico.PAUSER_ROLE(), owner.address);
         await ico.grantRole(await ico.MINTER_ROLE(), owner.address);
+
         // Send PDM tokens to ICO contract for distribution
-        await praediumToken.transfer(ico.address, maxIcoSupply);
+        await praediumToken.mint(praediumToken.address, initialSupply);
+        await praediumToken.mint(ico.address, maxIcoSupply);
     });
 
     describe("Deployment", function () {

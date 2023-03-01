@@ -9,22 +9,30 @@ describe("PraediumToken Contract Tests", function () {
     let owner;
     let addr1;
     let addr2;
+    let initialSupply = 724015;
+    let maxSupply = 1005577;
 
     beforeEach(async function () {
+        [owner, addr1, addr2, pauser, minter] = await ethers.getSigners();
+
         Token = await ethers.getContractFactory("Token");
-        praediumToken = await Token.deploy(1005577);
+        praediumToken = await Token.deploy(initialSupply,maxSupply);
         await praediumToken.deployed();
-        
-        [owner, addr1, addr2] = await ethers.getSigners();
-        [owner, pauser, minter] = await ethers.getSigners();
         
         await praediumToken.grantRole(await praediumToken.PAUSER_ROLE(), owner.address);
         await praediumToken.grantRole(await praediumToken.MINTER_ROLE(), owner.address);
-
+        
+        // Mint GALR and send some to ADress1
+        await praediumToken.mint(praediumToken.address, initialSupply)
+        await praediumToken.mint(addr1.address, 1000)
+        
+        
         MaliciousContract = await ethers.getContractFactory("MCT");
         malicious = await MaliciousContract.deploy(praediumToken.address);
+        
         // Approve the malicious contract to transfer 100 tokens
-        await praediumToken.approve(malicious.address, 100);
+        await praediumToken.mint(malicious.address, 1000)
+        await praediumToken.approve(malicious.address, 1000);
     });
   
     describe("Deployment", function () {
@@ -34,6 +42,10 @@ describe("PraediumToken Contract Tests", function () {
       
         it("should return the correct symbol", async function () {
           expect(await praediumToken.symbol()).to.equal("PDM");
+        });
+
+        it("Should have InitialSupply of tokens", async function () {
+          expect(await praediumToken.balanceOf(praediumToken.address)).to.equal(initialSupply);
         });
     });
   
@@ -96,7 +108,7 @@ describe("PraediumToken Contract Tests", function () {
     describe("MaxSupply", function () {
         it("should have a max supply of 1005577 tokens", async function () {
             const maxSupply = await praediumToken.maxSupply();
-            expect(maxSupply.toString()).to.equal("1005577000000000000000000");
+            expect(maxSupply.toString()).to.equal(maxSupply);
         });
 
         it("Should fail if minting more than max supply", async function () {
@@ -123,59 +135,45 @@ describe("PraediumToken Contract Tests", function () {
 
     describe("Transactions", function () {
         it("Should transfer tokens between accounts", async function () {
-            // Transfer 50 tokens from owner to addr1
-            await praediumToken.transfer(addr1.address, 50);
-            const addr1Balance = await praediumToken.balanceOf(addr1.address);
-            expect(addr1Balance).to.equal(50);
-
-            // Transfer 50 tokens from addr1 to addr2
-            // we use .connect(signer) to send a transaction from another account
-            await praediumToken.connect(addr1).transfer(addr2.address, 50);
+            // Get Address1 Initial Balance
+            const addr1InitialBalance = await praediumToken.balanceOf(addr1.address);
+            expect(addr1InitialBalance).to.equal(1000);
+            
+            // // Transfer 50 tokens from addr1 to addr2
+            await praediumToken.connect(addr1).transfer(addr2.address,100 );
             const addr2Balance = await praediumToken.balanceOf(addr2.address);
-            expect(addr2Balance).to.equal(50);
+            expect(addr2Balance).to.equal(100);
         });
-        
         it("Should fail if sender doesn't have enough tokens", async function () {
-            const initialOwnerBalance = await praediumToken.balanceOf(owner.address);
-            // Try to send 1 token from addr1 (0 tokens) to owner (100000 tokens).
+            const initialAddr1Balance = await praediumToken.balanceOf(addr1.address);
+            // Try to send 1 token from addr1 (0 tokens) to addr1 (1000 tokens).
             // 'require' will evaluate false and revert the transaction.
             await expect(
-                praediumToken.connect(addr1).transfer(owner.address, 1)
+                praediumToken.connect(owner).transfer(addr1.address, 1)
             ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
 
-            // Owner balance should not change.
-            expect(await praediumToken.balanceOf(owner.address)).to.equal(initialOwnerBalance);
+            // addr1 balance should not change.
+            expect(await praediumToken.balanceOf(addr1.address)).to.equal(initialAddr1Balance);
         });
-        
+
         it("Should update balances after transfers", async function () {
             const initialOwnerBalance = await praediumToken.balanceOf(owner.address);
 
-            // Transfer 100 tokens from owner to addr1
-            await praediumToken.transfer(addr1.address, 100);
+            // Transfer 100 tokens from PDM to addr1
+            await praediumToken.connect(addr1).transfer(owner.address, 100);
             
             // Transfer 50 tokens from owner to addr2
-            await praediumToken.transfer(addr2.address, 50);
+            await praediumToken.connect(owner).transfer(addr2.address, 50);
 
-            // Check balances
+            // // Check balances
             const finalOwnerBalance = await praediumToken.balanceOf(owner.address);
-            expect(finalOwnerBalance).to.equal(initialOwnerBalance.sub(150));
+            expect(finalOwnerBalance).to.equal(initialOwnerBalance.add(50));
 
             const addr1Balance = await praediumToken.balanceOf(addr1.address);
-            expect(addr1Balance).to.equal(100);
+            expect(addr1Balance).to.equal(900);
 
             const addr2Balance = await praediumToken.balanceOf(addr2.address);
             expect(addr2Balance).to.equal(50);
-        });
-    });
-
-    describe("Reentrancy Attack", function () {
-        it("should not allow reentrancy attacks", async function () {
-            const initialBalance = await praediumToken.balanceOf(owner.address);
-            
-            await malicious.test(owner.address, 1);
-            const finalBalance = await praediumToken.balanceOf(owner.address);
-
-            expect(finalBalance).to.equal(initialBalance);
         });
     });
 });

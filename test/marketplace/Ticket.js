@@ -27,7 +27,7 @@ describe("Ticket ERC1155 Test Methods", function () {
     });
 
     describe("Create NFTs", function () { 
-        it("Create NFT using Ticket contract", async function () { 
+        it("Buy NFT using Ticket contract", async function () { 
             // Buy a new NFT
             await ticket.connect(addr1).buy(0, 1, { value: nftPrice })
         });

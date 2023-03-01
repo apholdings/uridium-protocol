@@ -14,13 +14,12 @@ contract Token is ERC20, Pausable, AccessControl, ReentrancyGuard {
 
     uint256 public maxSupply;
 
-    constructor(uint256 _maxSupply) 
+    constructor(
+        uint256 _maxSupply
+    ) 
     ERC20("Praedium", "PDM") 
     {
-        _mint(msg.sender, 500000 * 10 ** decimals());
-
-        maxSupply = _maxSupply * (10 ** decimals());
-        
+        maxSupply = _maxSupply;
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(PAUSER_ROLE, msg.sender);
         _grantRole(MINTER_ROLE, msg.sender);

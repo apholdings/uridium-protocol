@@ -3,9 +3,13 @@ pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 
-contract Booth is ReentrancyGuard {
+contract Booth is ReentrancyGuard, AccessControl {
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+
     // Variables
     address payable public immutable feeAccount; // the account that receives fees
     uint public immutable feePercent; // the fee percentage on sales 
@@ -46,8 +50,12 @@ contract Booth is ReentrancyGuard {
     constructor(uint _feePercent) {
         feeAccount = payable(msg.sender);
         feePercent = _feePercent;
-    }
 
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(PAUSER_ROLE, msg.sender);
+        _grantRole(MINTER_ROLE, msg.sender);
+
+    }
 
     // Make item to offer on the marketplace
     function sell(IERC1155 _ticket, uint _tokenId, uint _price, uint _amount) external nonReentrant {
@@ -101,6 +109,12 @@ contract Booth is ReentrancyGuard {
             msg.sender
         );
     }
+
+    // function withdraw() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    //     uint balance = address(this).balance;
+    //     require(balance > 0, "No balance to withdraw");
+    //     payable(msg.sender).transfer(balance);
+    // }
 
     function getTotalPrice(uint _itemId) view public returns(uint){
         return((items[_itemId].price*(100 + feePercent))/100);

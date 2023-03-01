@@ -8,10 +8,17 @@ module.exports = {
     goerli: {
       url: process.env.RPC_URL,
       accounts: [process.env.PRIVATE_KEY]
-    }
+    },
+    polygon: {
+      url: process.env.POLYGON_RPC_URL,
+      accounts: [process.env.PRIVATE_KEY]
+    },
   },
+  // etherscan: {
+  //   apiKey: process.env.ETHERESCAN_API_KEY,
+  // },
   etherscan: {
-    apiKey: process.env.ETHERESCAN_API_KEY,
-  }
+      apiKey: process.env.POLYGONSCAN_API_KEY,
+    },
 };
 
