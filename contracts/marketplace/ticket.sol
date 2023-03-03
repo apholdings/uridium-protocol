@@ -13,11 +13,11 @@ contract Ticket is ERC1155, AccessControl, Pausable, ERC1155Supply, PaymentSplit
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant STK_ROLE = keccak256("STK_ROLE");
+    bytes32 public constant DISCOUNT_BUYER_ROLE = keccak256("DISCOUNT_BUYER_ROLE");
 
     uint256 public price;
-
-    uint256 public platformShare = 10;
-    uint256 public sellerShare = 90;
+    // NFTS a user has minted for this ticket
+    mapping(uint256 => mapping(address => uint256)) userNFTs;
 
     constructor(
         // uint256 _ticketSupply,
@@ -46,6 +46,14 @@ contract Ticket is ERC1155, AccessControl, Pausable, ERC1155Supply, PaymentSplit
         emit SetUri(newuri);
     }
 
+    function setDiscountBuyer(address buyer) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        _grantRole(DISCOUNT_BUYER_ROLE, buyer);
+    }
+
+    function updatePrice(uint256 newPrice) public onlyRole(MINTER_ROLE) {
+            price = newPrice;
+    }
+
     function pause() public onlyRole(PAUSER_ROLE) {
         _pause();
         emit Stop();
@@ -56,14 +64,35 @@ contract Ticket is ERC1155, AccessControl, Pausable, ERC1155Supply, PaymentSplit
         emit Start();
     }
     
-    function buy(uint256 id, uint256 qty)
+    function buy(uint256 ticketId, uint256 nftId, uint256 qty)
         public
         payable
     {
         require(msg.value >= price * qty, "Not Enough ETH to Buy NFT");
         // require(totalSupply(id) + qty <= ticketSupply, "NFT Out of Stock");
-        emit Mint(id, qty);
-        _mint(msg.sender, id, qty, "");
+        emit Mint(nftId, qty);
+        _mint(msg.sender, nftId, qty, "");
+        // Store the mapping between the course ID and the user's NFT ID
+        userNFTs[ticketId][msg.sender] = nftId;
+    }
+
+    function discountBuy(uint256 ticketId, uint256 nftId, uint256 qty) public payable onlyRole(DISCOUNT_BUYER_ROLE) {
+        // Mint the requested amount of NFTs and send them to the buyer
+        emit Mint(nftId, qty);
+        _mint(msg.sender, nftId, qty, "");
+
+        // Revoke the discount buyer role to prevent further discounted purchases
+        _revokeRole(DISCOUNT_BUYER_ROLE, msg.sender);
+        // Store the mapping between the course ID and the user's NFT ID
+        userNFTs[ticketId][msg.sender] = nftId;
+    }
+
+    function hasAccess(uint256 ticketId, address usr) public view returns (bool) {
+        // Get the user's NFT ID for the given course
+        uint256 nftId = userNFTs[ticketId][usr];
+
+        // Check if the user has an NFT associated with the course
+        return balanceOf(usr, nftId) > 0;
     }
 
     function uri(uint256 _id) public view virtual override returns (string memory) {
