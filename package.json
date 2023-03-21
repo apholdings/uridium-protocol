@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@chainlink/contracts": "^0.6.1",
-    "@openzeppelin/contracts": "^4.8.1",
+    "@openzeppelin/contracts": "^4.8.2",
     "chai": "^4.3.7",
     "web3": "^1.8.2"
   }

@@ -23,9 +23,10 @@ contract Ticket is ERC1155, AccessControl, Pausable, ERC1155Supply, PaymentSplit
         // uint256 _ticketSupply,
         uint256 _price,
         address[] memory _payees,
-        uint256[] memory _shares
+        uint256[] memory _shares,
+        string memory _uri
     ) 
-    ERC1155("https://boomslag.com/courses/{id}")
+    ERC1155(_uri)
     PaymentSplitter(_payees, _shares)
     {
         price = _price;
@@ -64,27 +65,27 @@ contract Ticket is ERC1155, AccessControl, Pausable, ERC1155Supply, PaymentSplit
         emit Start();
     }
     
-    function buy(uint256 ticketId, uint256 nftId, uint256 qty)
+    function buy(uint256 ticketId, uint256 nftId, uint256 qty, address guy)
         public
         payable
     {
         require(msg.value >= price * qty, "Not Enough ETH to Buy NFT");
         // require(totalSupply(id) + qty <= ticketSupply, "NFT Out of Stock");
         emit Mint(nftId, qty);
-        _mint(msg.sender, nftId, qty, "");
+        _mint(guy, nftId, qty, "");
         // Store the mapping between the course ID and the user's NFT ID
-        userNFTs[ticketId][msg.sender] = nftId;
+        userNFTs[ticketId][guy] = nftId;
     }
 
-    function discountBuy(uint256 ticketId, uint256 nftId, uint256 qty) public payable onlyRole(DISCOUNT_BUYER_ROLE) {
+    function discountBuy(uint256 ticketId, uint256 nftId, uint256 qty, address guy) public payable onlyRole(DISCOUNT_BUYER_ROLE) {
         // Mint the requested amount of NFTs and send them to the buyer
         emit Mint(nftId, qty);
-        _mint(msg.sender, nftId, qty, "");
+        _mint(guy, nftId, qty, "");
 
         // Revoke the discount buyer role to prevent further discounted purchases
-        _revokeRole(DISCOUNT_BUYER_ROLE, msg.sender);
+        // _revokeRole(DISCOUNT_BUYER_ROLE, guy);
         // Store the mapping between the course ID and the user's NFT ID
-        userNFTs[ticketId][msg.sender] = nftId;
+        userNFTs[ticketId][guy] = nftId;
     }
 
     function hasAccess(uint256 ticketId, address usr) public view returns (bool) {
@@ -97,7 +98,8 @@ contract Ticket is ERC1155, AccessControl, Pausable, ERC1155Supply, PaymentSplit
 
     function uri(uint256 _id) public view virtual override returns (string memory) {
         require(exists(_id),"URI: Token does not exist.");
-        return string(abi.encodePacked(super.uri(_id),Strings.toString(_id), ".json" ));
+        // return string(abi.encodePacked(super.uri(_id),Strings.toString(_id), ".json" ));
+        return string(abi.encodePacked(super.uri(_id),Strings.toString(_id) ));
     }
 
     function mintBatch(address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data)
@@ -113,6 +115,7 @@ contract Ticket is ERC1155, AccessControl, Pausable, ERC1155Supply, PaymentSplit
         override(ERC1155, ERC1155Supply)
     {
         super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
+        // Assuming only one token is transferred at a time
     }
 
     // The following functions are overrides required by Solidity.
@@ -125,4 +128,6 @@ contract Ticket is ERC1155, AccessControl, Pausable, ERC1155Supply, PaymentSplit
     {
         return super.supportsInterface(interfaceId);
     }
+
+    fallback() external payable {}
 }

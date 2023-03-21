@@ -1,130 +1,91 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
+import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
-contract Booth is ReentrancyGuard, AccessControl {
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
-    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+import "./ticket.sol";
+import "./affiliates.sol";
 
-    // Variables
-    address payable public immutable feeAccount; // the account that receives fees
-    uint public immutable feePercent; // the fee percentage on sales 
-    uint public itemCount; 
+contract Booth is IERC165, IERC1155Receiver {
+    Affiliates public affiliateContract;
 
-    struct Item {
-        uint itemId;
-        IERC1155 ticket;
-        uint tokenId;
-        uint price;
-        uint amount;
-        address payable seller;
-        bool sold;
+    // Mapping to store the registered objects and their ticket contracts
+    mapping(uint256 => Ticket) public objectToTicket;
+
+    constructor(Affiliates _affiliateContract) {
+        affiliateContract = _affiliateContract;
     }
 
-    // itemId -> Item
-    mapping(uint => Item) public items;
-
-    event Offered(
-        uint itemId,
-        address indexed ticket,
-        uint tokenId,
-        uint price,
-        uint amount,
-        address indexed seller
-    );
-
-    event Bought(
-        uint itemId,
-        address indexed ticket,
-        uint tokenId,
-        uint price,
-        uint amount,
-        address indexed seller,
-        address indexed buyer
-    );
-
-    constructor(uint _feePercent) {
-        feeAccount = payable(msg.sender);
-        feePercent = _feePercent;
-
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(PAUSER_ROLE, msg.sender);
-        _grantRole(MINTER_ROLE, msg.sender);
-
+    // Register a new object and its corresponding ticket contract
+    function registerObject(uint256 _objectId, Ticket ticketContract) external {
+        // Only allow registering an object once
+        require(address(objectToTicket[_objectId]) == address(0), "Object already registered");
+        objectToTicket[_objectId] = ticketContract;
     }
 
-    // Make item to offer on the marketplace
-    function sell(IERC1155 _ticket, uint _tokenId, uint _price, uint _amount) external nonReentrant {
-        require(_price > 0, "Price must be greater than zero");
-        // increment itemCount
-        itemCount ++;
-        // transfer Ticket (NFT)
-        _ticket.safeTransferFrom(msg.sender, address(this), _tokenId, _amount, "0x");
-        // add new item to items mapping
-        items[itemCount] = Item (
-            itemCount,
-            _ticket,
-            _tokenId,
-            _price,
-            _amount,
-            payable(msg.sender),
-            false
-        );
-        // emit Offered event
-        emit Offered(
-            itemCount,
-            address(_ticket),
-            _tokenId,
-            _price,
-            _amount,
-            msg.sender
-        );
+    // Verify owner of the ticket
+    function hasAccess(uint256 _objectId, address _usr) public view returns (bool) {
+        Ticket ticketContract = objectToTicket[_objectId];
+        require(address(ticketContract) != address(0), "Invalid object");
+        return ticketContract.hasAccess(_objectId, _usr);
     }
 
-    function buy(uint _itemId) external payable nonReentrant {
-        uint _totalPrice = getTotalPrice(_itemId);
-        Item storage item = items[_itemId];
-        require(_itemId > 0 && _itemId <= itemCount, "item doesn't exist");
-        require(msg.value >= _totalPrice, "not enough ether to cover item price and market fee");
-        require(!item.sold, "item already sold");
-        // pay seller and feeAccount
-        item.seller.transfer(item.price);
-        feeAccount.transfer(_totalPrice - item.price);
-        // update item to sold
-        item.sold = true;
-        // transfer nft to buyer
-        item.ticket.safeTransferFrom(address(this), msg.sender, item.tokenId, 1, "");
-        // emit Bought event
-        emit Bought(
-            _itemId,
-            address(item.ticket),
-            item.tokenId,
-            item.price,
-            1,
-            item.seller,
-            msg.sender
-        );
+    // Function to mint ticket NFT
+    function buy(uint256 _objectId, uint256 nftId, uint256 qty, address guy) public payable {
+        Ticket ticketContract = objectToTicket[_objectId];
+        require(address(ticketContract) != address(0), "Invalid object");
+        // Buy the NFT from the ticket contract
+        ticketContract.buy{value: msg.value}(_objectId, nftId, qty, guy);
     }
 
-    // function withdraw() external onlyRole(DEFAULT_ADMIN_ROLE) {
-    //     uint balance = address(this).balance;
-    //     require(balance > 0, "No balance to withdraw");
-    //     payable(msg.sender).transfer(balance);
-    // }
+    // Function to mint ticket NFT and pay affiliate commissions
+    function affiliateBuy(uint256 _objectId, uint256 nftId, uint256 qty, address guy,address affiliate) public payable {
+        Ticket ticketContract = objectToTicket[_objectId];
+        require(address(ticketContract) != address(0), "Invalid object");
+        
+        uint256 purchasePrice = ticketContract.price() * qty;
+        uint256 commission = purchasePrice * affiliateContract.referralRewardBasisPoints() / 10000; // Calculate the commission
+        uint256 payment = purchasePrice - commission; // Calculate the actual payment after deducting commission
 
-    function getTotalPrice(uint _itemId) view public returns(uint){
-        return((items[_itemId].price*(100 + feePercent))/100);
+        // Call the Affiliate contract to handle the referral reward
+        affiliateContract.handleAffiliateProgram{value: commission}(guy, affiliate, purchasePrice);
+
+        // Buy the NFT from the ticket contract at the discounted price
+        ticketContract.discountBuy{value: payment}(_objectId, nftId, qty, guy);
     }
 
-    function onERC1155Received(address operator, address from, uint256 id, uint256 value, bytes memory data) public pure returns (bytes4) {
+    // Function to mint ticket NFT at discount price
+    function discountBuy(uint256 _objectId, uint256 nftId, uint256 qty, address guy) public payable {
+        Ticket ticketContract = objectToTicket[_objectId];
+        require(address(ticketContract) != address(0), "Invalid object");
+        // Buy the NFT from the ticket contract
+        ticketContract.discountBuy{value: msg.value}(_objectId, nftId, qty, guy);
+    }
+
+    function onERC1155Received(
+        address,
+        address,
+        uint256,
+        uint256,
+        bytes calldata
+    ) external pure override returns (bytes4) {
         return this.onERC1155Received.selector;
     }
 
-    function onERC1155BatchReceived(address operator, address from, uint256[] memory ids, uint256[] memory values, bytes memory data) public pure returns (bytes4) {
+    function onERC1155BatchReceived(
+        address,
+        address,
+        uint256[] calldata,
+        uint256[] calldata,
+        bytes calldata
+    ) external pure override returns (bytes4) {
         return this.onERC1155BatchReceived.selector;
+    }
+
+    function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165) returns (bool) {
+        return
+            interfaceId == type(IERC1155Receiver).interfaceId ||
+            interfaceId == type(IERC165).interfaceId;
     }
 }

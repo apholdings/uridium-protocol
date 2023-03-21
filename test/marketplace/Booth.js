@@ -1,37 +1,50 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-const toWei = (num) => ethers.utils.parseEther(num.toString())
-const fromWei = (num) => ethers.utils.formatEther(num)
-
-describe("Ticketing Booth Tests", function () { 
-    let Ticket, ticket, Booth, booth;
+describe("Booth and Affiliate Tests", function () { 
+    let Affiliates, Ticket, Booth, affiliates, ticket, booth;
+    let owner, seller, buyer, buyer2, affiliate;
     const nftPrice = ethers.utils.parseEther("0.01");
-    let feePercent = ethers.utils.parseEther("0.0001");
-
+    const uri = "https://boomslag.com/api/courses/nft/tokenid";
+    const objectId = 1;
+    const referralRewardBasisPoints = 1000; // 10%
 
     beforeEach(async function () {
-        [owner, addr1, addr2, addr3, pauser, minter] = await ethers.getSigners();
+        [owner, seller, buyer, buyer2, affiliate] = await ethers.getSigners();
+
+        // Deploy Affiliates Contract
+        Affiliates = await ethers.getContractFactory("Affiliates");
+        affiliates = await Affiliates.deploy(referralRewardBasisPoints);
+        await affiliates.deployed();
 
         // Deploy Ticket Contract
         Ticket = await ethers.getContractFactory("Ticket");
-        ticket = await Ticket.deploy(nftPrice,[owner.address,addr1.address],[10,90]); // Payees, Shares
+        ticket = await Ticket.deploy(nftPrice, [owner.address, seller.address], [10, 90], uri);
         await ticket.deployed();
 
-        await ticket.grantRole(await ticket.PAUSER_ROLE(), owner.address);
-        await ticket.grantRole(await ticket.MINTER_ROLE(), owner.address);
-
+        // Deploy Booth Contract
         Booth = await ethers.getContractFactory("Booth");
-        booth = await Booth.deploy(feePercent);
+        booth = await Booth.deploy(affiliates.address);
+        await booth.deployed();
+
+        // Register the objectId and its corresponding ticket contract
+        await booth.registerObject(objectId, ticket.address);
+
+        await ticket.grantRole(await ticket.DISCOUNT_BUYER_ROLE(), booth.address);
     });
 
     describe("Deployment", function () {
-
         it("Deploy Ticket contract", async function () {
             expect(ticket.address).to.not.equal(0x0);
             expect(ticket.address).to.not.equal(null);
             expect(ticket.address).to.not.equal(undefined);
             expect(ticket.address).to.not.equal("");
+        });
+        it("Deploy Affiliates contract", async function () {
+            expect(affiliates.address).to.not.equal(0x0);
+            expect(affiliates.address).to.not.equal(null);
+            expect(affiliates.address).to.not.equal(undefined);
+            expect(affiliates.address).to.not.equal("");
         });
 
         it("Deploy Booth contract", async function () {
@@ -40,150 +53,76 @@ describe("Ticketing Booth Tests", function () {
             expect(booth.address).to.not.equal(undefined);
             expect(booth.address).to.not.equal("");
         });
-
-        it("Should track feeAccount and feePercent of the marketplace", async function () {
-            expect(await booth.feeAccount()).to.equal(owner.address);
-            expect(await booth.feePercent()).to.equal(feePercent);
-        });
     });
 
-    describe("Minting NFTs", function () { 
-        it("User1 Deploys NFT and User2 and User3 Buys NFT", async function () {
-            // Buy a new NFT Addr2
-            await ticket.connect(addr2).buy(0, 1, { value: nftPrice });
-            await ticket.connect(addr3).buy(0, 1, { value: nftPrice });
-
-            // Verify that buyer now owns the NFT
-            const addr2balance = await ticket.balanceOf(addr2.address, 0);
-            expect(addr2balance).to.equal(1);
-            const addr3balance = await ticket.balanceOf(addr3.address, 0);
-            expect(addr3balance).to.equal(1);
-        });
-    });
-
-    describe("Making marketplace items", function () { 
-        beforeEach(async function () {
-            // addr2 buys an nft
-            await ticket.connect(addr2).buy(0, 1, { value: nftPrice });
-            // addr1 approves marketplace to spend nft
-            await ticket.connect(addr2).setApprovalForAll(booth.address, true)
-        })
-
-        it("Should track newly created item, transfer NFT from seller to marketplace and emit Offered event", async function () {
-            // Verify that buyer owns the NFT
-            const addr2balance = await ticket.balanceOf(addr2.address, 0);
-            expect(addr2balance).to.equal(1);
-
-            // Transfer ownership of NFT from addr2 to addr3
-            const amount = 1;
-            const tokenId = 0;
-            const price = toWei(1);
-            // await booth.connect(addr2).sell(ticket.address, tokenId, price, amount);
-
-            // addr2 offers their nft at a price of 1 ether
-            await expect(booth.connect(addr2).sell(ticket.address, tokenId, price, amount))
-                .to.emit(booth, "Offered").withArgs(
-                    1,
-                    ticket.address,
-                    tokenId,
-                    price,
-                    amount,
-                    addr2.address
-                )
-            // Owner of NFT should now be the booth
-            balance = await ticket.balanceOf(booth.address, tokenId);
-            expect(balance).to.equal(1);
-
-            // Item count should now equal 1
-            expect(await booth.itemCount()).to.equal(1)
-
-            // Get item from items mapping then check fields to ensure they are correct
-            const item = await booth.items(1)
-            expect(item.itemId).to.equal(1)
-            expect(item.ticket).to.equal(ticket.address)
-            expect(item.tokenId).to.equal(tokenId)
-            expect(item.price).to.equal(price)
-            expect(item.sold).to.equal(false)
+    describe("Transactions", function () {
+        it("Buy NFT using Booth", async function () {
+            const nftId = 1;
+            const qty = 1;
+            const guy = buyer.address
+            await booth.connect(buyer).buy(objectId, nftId, qty, guy,{ value: nftPrice });
         });
 
-        it("Should fail if price is set to zero", async function () {
+        it("Buy NFT with affiliate", async function () {
+            const nftId = 1;
+            const qty = 1;
+            const guy = buyer.address
+            const _affiliate = affiliate.address
 
-            const amount = 1;
-            const tokenId = 0;
-            const price = toWei(0);
+            await booth.connect(buyer).affiliateBuy(objectId, nftId, qty, guy, _affiliate, { value: nftPrice.mul(qty) });
+        });
+        
+        it("Buy NFT with Discount", async function () {
+            const nftId = 1;
+            const qty = 1;
+            const guy = buyer.address
 
-            await expect(
-                booth.connect(addr2).sell(ticket.address, tokenId, price, amount)
-            ).to.be.revertedWith("Price must be greater than zero");
+            await booth.connect(buyer).discountBuy(objectId, nftId, qty, guy, { value: ethers.utils.parseEther("0.005") });
         });
 
-    });
-    describe("Purchasing marketplace items", function () { 
-        const amount = 1;
-        const tokenId = 0;
-        let price = 0.1 * 1000000;
-        let fee = (feePercent/100)*price
-        let totalPriceInWei
+        it("Verify ownership of NFT after buying through Booth", async function () {
+            const nftId = 1;
+            const qty = 1;
+            const guy = buyer.address
 
-        beforeEach(async function () {
-            // addr2 buys an nft
-            await ticket.connect(addr2).buy(0, 1, { value: nftPrice });
-            // addr2 approves marketplace to spend nft
-            await ticket.connect(addr2).setApprovalForAll(booth.address, true)
-            // addr2 makes their nft a marketplace item.
-            await booth.connect(addr2).sell(ticket.address, tokenId, price, amount)
-        })
-
-        it("Should update item as sold, pay seller, transfer NFT to buyer, charge fees and emit a Bought event", async function () { 
-            const sellerInitalEthBal = await addr2.getBalance()
-            const feeAccountInitialEthBal = await owner.getBalance()
-
-            // Owner of NFT should now be the booth
-            balance = await ticket.balanceOf(booth.address, tokenId);
-            expect(balance).to.equal(1);
-
-            // fetch items total price (market fees + item price)
-            totalPriceInWei = await booth.getTotalPrice(1);
-
-            await booth.connect(addr3).buy(1, { value: totalPriceInWei })
+            // Check buyer's initial NFT balance
+            let initialBuyerNFTBalance = await ticket.balanceOf(guy, nftId);
+            expect(initialBuyerNFTBalance).to.equal(0);
             
-            // Item should be marked as sold
-            expect((await booth.items(1)).sold).to.equal(true)
+            // Check buyer's initial ETH balance
+            const initialBuyerEthBalance = await ethers.provider.getBalance(guy);
 
-            // Owner of NFT should now be Addr3
-            balance = await ticket.balanceOf(addr3.address, tokenId);
-            expect(balance).to.equal(1);
-            
-            const sellerFinalEthBal = await addr2.getBalance()
-            const feeAccountFinalEthBal = await owner.getBalance()
+            // Buy NFT
+            await booth.connect(buyer).buy(objectId, nftId, qty, guy, { value: nftPrice.mul(qty) });
 
-            // Seller should receive payment for the price of the NFT sold.
-            expect(sellerFinalEthBal).to.be.above(sellerInitalEthBal)
-            expect(feeAccountFinalEthBal).to.be.above(feeAccountInitialEthBal)
+            // Verify Ownership
+            const hasAccess = await booth.hasAccess(objectId, guy);
+            expect(hasAccess).to.equal(true);
+
+            let buyerNFTBalance = await ticket.balanceOf(guy, nftId);
+             expect(buyerNFTBalance).to.equal(1);
         });
 
-        it("Should fail for invalid item ids, sold items and when not enough ether is paid", async function () {
-            // fails for invalid item ids
-            await expect(
-                booth.connect(addr3).buy(2, {value: totalPriceInWei})
-            ).to.be.revertedWith("item doesn't exist");
-            await expect(
-                booth.connect(addr3).buy(0, {value: totalPriceInWei})
-            ).to.be.revertedWith("item doesn't exist");
+        it("Verify affiliate and seller commissions after buying through Booth with affiliateBuy", async function () {
+            const nftId = 1;
+            const qty = 1;
+            const buyerAddress = buyer.address;
+            const affiliateAddress = affiliate.address;
 
-            // Fails when not enough ether is paid with the transaction.
-            // In this instance, fails when buyer only sends enough ether to cover the price of the nft
-            // not the additional market fee.
-            await expect(
-                booth.connect(addr3).buy(1, {value: 100})
-            ).to.be.revertedWith("not enough ether to cover item price and market fee"); 
+            // Record initial ETH balances for affiliate and seller
+            const initialAffiliateEthBalance = await ethers.provider.getBalance(affiliateAddress);
             
-            // addr3 purchases item 1
-            await booth.connect(addr3).buy(1, {value: totalPriceInWei})
-            // addr3 tries purchasing item 1 after its been sold 
-            await expect(
-                booth.connect(addr1).buy(1, {value: totalPriceInWei})
-            ).to.be.revertedWith("item already sold");
+            // Buy NFT through affiliateBuy
+            await booth.connect(buyer).affiliateBuy(objectId, nftId, qty, buyerAddress, affiliateAddress, { value: nftPrice.mul(qty) });
+
+            // Calculate expected commission for the affiliate
+            const expectedAffiliateCommission = nftPrice.mul(qty).mul(referralRewardBasisPoints).div(10000);
+
+            // Record final ETH balances for affiliate and seller
+            const finalAffiliateEthBalance = await ethers.provider.getBalance(affiliateAddress);
+
+            // Verify that the affiliate and seller received the correct commission
+            expect(finalAffiliateEthBalance.sub(initialAffiliateEthBalance)).to.be.closeTo(expectedAffiliateCommission, ethers.utils.parseEther("0.0001"));
         });
     });
 });
