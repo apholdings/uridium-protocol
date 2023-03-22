@@ -22,40 +22,113 @@ async function main() {
         web3.utils.fromWei((await deployer.getBalance()).toString(), "ether")
     );
     
-    // Get the ContractFactories and Signers here.
-    const RoleManagement = await ethers.getContractFactory("RoleManagement");
-    const Pricing = await ethers.getContractFactory("Pricing");
-    const PaymentDistribution = await ethers.getContractFactory("PaymentDistribution");
-    const TicketBase = await ethers.getContractFactory("TicketBase");
+    console.log('================ STARTED Deploying Ticket Contract ================');
     const Ticket = await ethers.getContractFactory("Ticket");
-    const Booth = await ethers.getContractFactory("Booth");
-    const Affiliate = await ethers.getContractFactory("Affiliate");
-    const Marketplace = await ethers.getContractFactory("Marketplace");
+    
+    const platformAddress = "0x49963EbcCB3728948A3fC058d403e6A7D53111bc"
+    const originNFTAddress = "0x1a76b300E3d5513d9F5D4BEEDF101c1DdA141091"
+    const royaltyReceiver = "0xF9D3E93c5C14Cbdbe8354C7F79C4316d51E4d6f4"
+    
+    const nftPrice = ethers.utils.parseEther("0.01")
+    const royaltyPercentage = 500; // 5% represented in basis points (100 basis points = 1%)
+    const initialStock = 30;
+    const nftId = 1;
+    const uri = "https://boomslag.com/api/courses/nft/";
+    
+    const ticket = await Ticket.deploy(
+      nftId,
+      nftPrice,
+      initialStock,
+      royaltyReceiver,
+      royaltyPercentage,
+      [platformAddress, originNFTAddress],
+      [40, 60],
+      uri
+  );
+  
+  const receipt = await ticket.deployTransaction.wait();
+  console.log(`Ticket contract deployed to: ${ticket.address}`);
+  console.log(`Transaction hash: ${receipt.transactionHash}`);
+  console.log(`Gas used: ${receipt.gasUsed.toString()}`);
+  console.log(`MATIC Cost: ${web3.utils.fromWei((receipt.gasUsed).toString(), "ether")}`);
+    
+    // Delay of 45 seconds
+    await sleep(45 * 1000)
+    await hre.run("verify:verify", {
+      address: ticket.address,
+      constructorArguments: [
+        nftId,
+        nftPrice,
+        initialStock,
+        royaltyReceiver,
+        royaltyPercentage,
+        [platformAddress, originNFTAddress],
+        [40, 60],
+        uri
+      ],
+    })
+  console.log('================ FINISHED Deploying Ticket Contract ================');
+  
+  console.log('================ STARTED Deploying Auctions Contract ================');
     const Auctions = await ethers.getContractFactory("Auctions");
 
-    // Deploy contracts
-    const roleManagement = await RoleManagement.deploy();
-    const pricing = await Pricing.deploy();
-    const paymentDistribution = await PaymentDistribution.deploy();
-    const ticketBase = await TicketBase.deploy(roleManagement.address);
-    const ticket = await Ticket.deploy(ticketBase.address, pricing.address, paymentDistribution.address);
-    const affiliate = await Affiliate.deploy(1000); // 10% referral reward
-    const booth = await Booth.deploy(affiliate.address);
-    const marketplace = await Marketplace.deploy(1); // 1% fee
-    const auctions = await Auctions.deploy(marketplace.address);
+    const auctions = await Auctions.deploy(ticket.address);
+    
+    const auctionReceipt = await auctions.deployTransaction.wait();
+    console.log(`Auctions contract deployed to: ${auctions.address}`);
+    console.log(`Transaction hash: ${auctionReceipt.transactionHash}`);
+    console.log(`Gas used: ${auctionReceipt.gasUsed.toString()}`);
+    console.log(`MATIC Cost: ${web3.utils.fromWei((auctionReceipt.gasUsed).toString(), "ether")}`);
 
-    // Log the deployed contract addresses
-    console.log("RoleManagement:", roleManagement.address);
-    console.log("Pricing:", pricing.address);
-    console.log("PaymentDistribution:", paymentDistribution.address);
-    console.log("TicketBase:", ticketBase.address);
-    console.log("Ticket:", ticket.address);
-    console.log("Affiliate:", affiliate.address);
-    console.log("Booth:", booth.address);
-    console.log("Marketplace:", marketplace.address);
-    console.log("Auctions:", auctions.address);
+    // Delay of 45 seconds
+    await sleep(45 * 1000)
+    await hre.run("verify:verify", {
+      address: auctions.address,
+      constructorArguments: [ticket.address],
+    })
+  console.log('================ FINISHED Deploying Auctions Contract ================');
+  
+  console.log('================ STARTED Deploying Affiliates Contract ================');
+    const Affiliates = await ethers.getContractFactory("Affiliates");
 
-}
+    const referralRewardBasisPoints = [150, 300, 450, 500, 600]; // Example values (10%, 5%, 2.5%)
+    const maxDepth = 5;
+
+    const affiliates = await Affiliates.deploy(referralRewardBasisPoints, maxDepth);
+    
+    const affiliatesReceipt = await affiliates.deployTransaction.wait();
+    console.log(`Affiliates contract deployed to: ${affiliates.address}`);
+    console.log(`Transaction hash: ${affiliatesReceipt.transactionHash}`);
+    console.log(`Gas used: ${affiliatesReceipt.gasUsed.toString()}`);
+    console.log(`MATIC Cost: ${web3.utils.fromWei((affiliatesReceipt.gasUsed).toString(), "ether")}`);
+
+    // Delay of 45 seconds
+    await sleep(45 * 1000)
+    await hre.run("verify:verify", {
+      address: affiliates.address,
+      constructorArguments: [referralRewardBasisPoints, maxDepth],
+    })
+  console.log('================ FINISHED Deploying Affiliates Contract ================');
+  
+  console.log('================ STARTED Deploying Booth Contract ================');
+    const Booth = await ethers.getContractFactory("Booth");
+
+    const booth = await Booth.deploy(affiliates.address);
+
+    const boothReceipt = await booth.deployTransaction.wait();
+    console.log(`Booth contract deployed to: ${booth.address}`);
+    console.log(`Transaction hash: ${boothReceipt.transactionHash}`);
+    console.log(`Gas used: ${boothReceipt.gasUsed.toString()}`);
+    console.log(`MATIC Cost: ${web3.utils.fromWei((boothReceipt.gasUsed).toString(), "ether")}`);
+
+    // Delay of 45 seconds
+    await sleep(45 * 1000)
+    await hre.run("verify:verify", {
+      address: booth.address,
+      constructorArguments: [affiliates.address],
+    })
+    console.log('================ FINISHED Deploying Booth Contract ================');
+  }
 
 main().catch((err) => {
   console.log(err);
