@@ -1,41 +1,57 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 
-contract Affiliates is Ownable {
-    // The percentage of the reward to be given to referrers (in basis points, e.g., 1000 = 10%)
-    uint256 public referralRewardBasisPoints;
+contract Affiliates is AccessControl {
+    bytes32 public constant BOOTH_ROLE = keccak256("BOOTH_ROLE");
+
+    // The percentage of the reward to be given to referrers at each level (in basis points, e.g., 1000 = 10%)
+    uint256[] public referralRewardBasisPoints;
 
     // The mapping to store referrer addresses
     mapping(address => address) public referrers;
-    mapping(uint256 => mapping(address => address)) public courseReferrers;
+    
+    // The maximum depth of the MLM hierarchy
+    uint256 public maxDepth;
 
-    event ReferralRewardUpdated(uint256 newRewardBasisPoints);
+    event ReferralRewardUpdated(uint256 level, uint256 newRewardBasisPoints);
 
-    constructor(uint256 _referralRewardBasisPoints) {
+    constructor(
+        uint256[] memory _referralRewardBasisPoints, 
+        uint256 _maxDepth
+    ) 
+    {
         referralRewardBasisPoints = _referralRewardBasisPoints;
+        maxDepth = _maxDepth;
+
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(BOOTH_ROLE, msg.sender);
     }
 
-    function setCourseReferrer(uint256 courseId, address user, address referrer) external onlyOwner {
-        courseReferrers[courseId][user] = referrer;
+    function setReferralReward(uint256 level, uint256 newRewardBasisPoints) public onlyRole(BOOTH_ROLE) {
+        referralRewardBasisPoints[level] = newRewardBasisPoints;
+        emit ReferralRewardUpdated(level, newRewardBasisPoints);
     }
 
-
-    function setReferralReward(uint256 newRewardBasisPoints) public onlyOwner {
-        referralRewardBasisPoints = newRewardBasisPoints;
-        emit ReferralRewardUpdated(newRewardBasisPoints);
-    }
-
-    function setReferrer(address user, address referrer) external onlyOwner {
+    function setReferrer(address user, address referrer) external onlyRole(BOOTH_ROLE) {
         referrers[user] = referrer;
     }
 
-    function handleAffiliateProgram(address buyer, address affiliate, uint256 purchasePrice) external payable {
-        // Check if the referrer is valid and not the same as the buyer
-        if (affiliate != address(0) && affiliate != buyer) {
-            uint256 referralReward = (purchasePrice * referralRewardBasisPoints) / 10000;
-            payable(affiliate).transfer(referralReward);
+    function setMaxDepth(uint256 newMaxDepth) public onlyRole(BOOTH_ROLE) {
+        maxDepth = newMaxDepth;
+    }
+
+    function handleAffiliateProgram(address buyer, uint256 purchasePrice) external payable {
+        address currentReferrer = referrers[buyer];
+        uint256 currentDepth = 0;
+
+        while (currentReferrer != address(0) && currentDepth < maxDepth) {
+            uint256 referralReward = (purchasePrice * referralRewardBasisPoints[currentDepth]) / 10000;
+            payable(currentReferrer).transfer(referralReward);
+
+            currentReferrer = referrers[currentReferrer];
+            currentDepth++;
         }
     }
 }
