@@ -26,5 +26,11 @@ module.exports = {
   //       runs: 200,
   //     },
   //   },
+  mocha: {
+    timeout: 20000
+  },
+  console: {
+    enabled: true,
+  }
 };
 

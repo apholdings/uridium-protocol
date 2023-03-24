@@ -1,6 +1,6 @@
 const { ethers } = require("hardhat");
 const web3 = require('web3');
-// const web3 = new Web3(new Web3.providers.HttpProvider("YOUR_PROVIDER_URL"));
+const https = require("https");
 
 async function sleep(ms) {
   return new Promise((resolve) => {
@@ -8,6 +8,29 @@ async function sleep(ms) {
       resolve()
     },ms)
   })
+}
+
+// Function to get the current price of MATIC in USD
+function getMaticUsdPrice() {
+  return new Promise((resolve, reject) => {
+    https.get("https://api.coingecko.com/api/v3/simple/price?ids=matic-network&vs_currencies=usd", (res) => {
+      let data = "";
+      
+      res.on("data", (chunk) => {
+        data += chunk;
+      });
+
+      res.on("end", () => {
+        const jsonData = JSON.parse(data);
+        // console.log(jsonData);
+        resolve(jsonData['matic-network'].usd);
+      });
+      
+      res.on("error", (error) => {
+        reject(error);
+      });
+    });
+  });
 }
 
 async function main() {
@@ -91,10 +114,29 @@ async function main() {
   console.log('================ STARTED Deploying Affiliates Contract ================');
     const Affiliates = await ethers.getContractFactory("Affiliates");
 
-    const referralRewardBasisPoints = [150, 300, 450, 500, 600]; // Example values (10%, 5%, 2.5%)
-    const maxDepth = 5;
+    const maxReferralDepth = 5;  
+    const referralRewardBasisPointsArray = [
+        [ 800, 1000, 1200, 1400, 1600], // Level 1: Bronze (Direct Referral)
+        [ 600,  800, 1000, 1200, 1400], // Level 2: Silver (Indirect Referral)
+        [ 400,  600,  800, 1000, 1200], // Level 3: Gold (Indirect Referral)
+        [ 200,  400,  600,  800, 1000], // Level 4: Platinum (Indirect Referral)
+        [ 100,  200,  400,  600,  800]  // Level 5: Diamond (Indirect Referral)
+      ]; // Represented in basis points
 
-    const affiliates = await Affiliates.deploy(referralRewardBasisPoints, maxDepth);
+    // Define the rank criteria
+    const rankCriteriasArray = [
+        {requiredDirectReferrals: 5, requiredSalesVolume: ethers.utils.parseEther("1")},
+        {requiredDirectReferrals: 10, requiredSalesVolume: ethers.utils.parseEther("5")},
+        {requiredDirectReferrals: 20, requiredSalesVolume: ethers.utils.parseEther("10")},
+        {requiredDirectReferrals: 50, requiredSalesVolume: ethers.utils.parseEther("20")},
+        {requiredDirectReferrals: 100, requiredSalesVolume: ethers.utils.parseEther("50")}
+    ];
+
+  const affiliates = await Affiliates.deploy(
+    referralRewardBasisPointsArray,
+    rankCriteriasArray,
+    maxReferralDepth
+  );
     
     const affiliatesReceipt = await affiliates.deployTransaction.wait();
     console.log(`Affiliates contract deployed to: ${affiliates.address}`);
@@ -106,7 +148,7 @@ async function main() {
     await sleep(45 * 1000)
     await hre.run("verify:verify", {
       address: affiliates.address,
-      constructorArguments: [referralRewardBasisPoints, maxDepth],
+      constructorArguments: [referralRewardBasisPointsArray, rankCriteriasArray, maxReferralDepth],
     })
   console.log('================ FINISHED Deploying Affiliates Contract ================');
   
@@ -127,7 +169,33 @@ async function main() {
       address: booth.address,
       constructorArguments: [affiliates.address],
     })
-    console.log('================ FINISHED Deploying Booth Contract ================');
+    
+    // Grant BOOTH_ROLE to the booth contract in the Ticket contract
+    await ticket.grantRole(await ticket.BOOTH_ROLE(), booth.address);
+    // Grant BOOTH_ROLE to the booth contract in the Affiliates contract
+    await affiliates.grantRole(await affiliates.BOOTH_ROLE(), booth.address);
+  console.log('================ FINISHED Deploying Booth Contract ================');
+    // Get the current price of MATIC in USD
+    const maticUsdPrice = await getMaticUsdPrice();
+
+    // Calculate the total gas used in all deployments
+    const totalGasUsed = receipt.gasUsed
+      .add(auctionReceipt.gasUsed)
+      .add(affiliatesReceipt.gasUsed)
+      .add(boothReceipt.gasUsed);
+
+    // Convert the total gas used to MATIC
+    const gasPrice = await deployer.provider.getGasPrice();
+    const totalMaticCost = totalGasUsed.mul(gasPrice);
+
+    // Convert the total MATIC cost to USD
+    const totalMaticCostInEther = parseFloat(web3.utils.fromWei(totalMaticCost.toString(), "ether"));
+    const totalDeploymentCostUsd = totalMaticCostInEther * maticUsdPrice;
+
+    console.log('================ FINAL DEPLOYMENT COSTS =================');
+    console.log(`Total gas used: ${totalGasUsed.toString()}`);
+    console.log(`Total cost in MATIC: ${totalMaticCostInEther}`);
+    console.log(`Total cost in USD: $${totalDeploymentCostUsd.toFixed(2)}`);
   }
 
 main().catch((err) => {

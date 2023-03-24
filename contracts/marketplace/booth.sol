@@ -4,6 +4,8 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
+import "hardhat/console.sol";
+
 import "./ticket.sol";
 import "./affiliates.sol";
 
@@ -31,13 +33,10 @@ contract Booth is IERC165, IERC1155Receiver {
 
     function joinAffiliateProgramAndBuy(uint256 _objectId, uint256 nftId, uint256 qty, address referrer) public payable {
         require(!ticketAffiliates[_objectId][msg.sender], "Already an affiliate for this NFT");
-
         // Call the affiliateBuy function to handle the purchase and commission payment
         affiliateBuy(_objectId, nftId, qty, msg.sender);
-
         // Add the buyer as an affiliate for this course
         ticketAffiliates[_objectId][msg.sender] = true;
-
         // Add the buyer as a referrer under the existing affiliate
         affiliateContract.setReferrer(msg.sender, referrer);
     }
@@ -48,7 +47,6 @@ contract Booth is IERC165, IERC1155Receiver {
 
         // Store the course tokenId and affiliate's address
         ticketAffiliates[_objectId][msg.sender] = true;
-
         affiliateContract.setReferrer(msg.sender, referrer);
     }
 
@@ -72,19 +70,15 @@ contract Booth is IERC165, IERC1155Receiver {
     }
 
     // Function to mint ticket NFT and pay affiliate commissions
-    function affiliateBuy(uint256 _objectId, uint256 nftId, uint256 qty, address guy) public payable {
+        function affiliateBuy(uint256 _objectId, uint256 nftId, uint256 qty, address guy) public payable {
         Ticket ticketContract = objectToTicket[_objectId];
         require(address(ticketContract) != address(0), "Invalid object");
-        
-        uint256 purchasePrice = ticketContract.price() * qty;
-        uint256 commission = purchasePrice * affiliateContract.referralRewardBasisPoints(0) / 10000; // Calculate the commission
-        uint256 payment = purchasePrice - commission; // Calculate the actual payment after deducting commission
-
+        uint256 commission = msg.value * 25 / 100; // Calculate the commission (25% of msg.value)
+        uint256 remainingRewards = msg.value - commission; // Calculate the remaining rewards (75% of msg.value)
         // Call the Affiliate contract to handle the referral reward
-        affiliateContract.handleAffiliateProgram{value: commission}(guy, purchasePrice);
-
-        // Buy the NFT from the ticket contract at the discounted price
-        ticketContract.boothMint{value: payment}(_objectId, nftId, qty, guy);
+        affiliateContract.handleAffiliateProgram{value: commission}(guy, commission);
+        // Buy the NFT from the ticket contract using the remaining rewards
+        ticketContract.boothMint{value: remainingRewards}(_objectId, nftId, qty, guy);
     }
 
     // Function to mint ticket NFT at discount price
