@@ -89,6 +89,7 @@ async function main() {
         [40, 60],
         uri
       ],
+      network: "mumbai"
     })
   console.log('================ FINISHED Deploying Ticket Contract ================');
   
@@ -108,6 +109,7 @@ async function main() {
     await hre.run("verify:verify", {
       address: auctions.address,
       constructorArguments: [ticket.address],
+      network: "mumbai"
     })
   console.log('================ FINISHED Deploying Auctions Contract ================');
   
@@ -149,6 +151,7 @@ async function main() {
     await hre.run("verify:verify", {
       address: affiliates.address,
       constructorArguments: [referralRewardBasisPointsArray, rankCriteriasArray, maxReferralDepth],
+      network: "mumbai"
     })
   console.log('================ FINISHED Deploying Affiliates Contract ================');
   
@@ -168,6 +171,7 @@ async function main() {
     await hre.run("verify:verify", {
       address: booth.address,
       constructorArguments: [affiliates.address],
+      network: "mumbai"
     })
     
     // Grant BOOTH_ROLE to the booth contract in the Ticket contract

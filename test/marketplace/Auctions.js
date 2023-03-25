@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { BigNumber } = ethers;
 
-describe("Booth Tests", function () { 
+describe("Auctions Tests", function () { 
     let Ticket, ticket, Auctions, auctions;
     let owner, seller, buyer, buyer2, royaltyReceiver, buyer3;
     const nftPrice = ethers.utils.parseEther("0.01");

@@ -3,10 +3,10 @@ pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "hardhat/console.sol";
 
 contract Affiliates is AccessControl {
     using SafeMath for uint256;
+    
     bytes32 public constant BOOTH_ROLE = keccak256("BOOTH_ROLE");
 
     // The contract supports rank progression based on the number of direct referrals 
@@ -31,25 +31,18 @@ contract Affiliates is AccessControl {
 
     // The percentage of the reward to be given to referrers at each level and rank (in basis points, e.g., 1000 = 10%)
     uint256[][] public referralRewardBasisPoints;
-
     // The mapping to store referrer addresses
     mapping(address => address) public referrers;
-
     // The mapping to store the rank of each referrer
     mapping(address => uint256) public referrerRanks;
-
     // The mapping to store the number of direct referrals for each referrer
     mapping(address => uint256) public directReferrals;
-
     // The mapping to store the sales volume for each referrer
     mapping(address => uint256) public salesVolume;
-
     // The mapping to store RankCriteria structs defining the criteria for each rank
     mapping(uint256 => RankCriteria) public rankCriterias;
-
     // The total number of rank criterias
     uint256 public rankCriteriasCount;
-
     // The maximum depth of the MLM hierarchy
     uint256 public maxDepth;
 
@@ -82,15 +75,12 @@ contract Affiliates is AccessControl {
     }
 
     function setReferrer(address guy, address referrer) external onlyRole(BOOTH_ROLE) {
-        // console.log('Setting referrer for user', guy, 'to', referrer);
         referrers[guy] = referrer;
         directReferrals[referrer]++;
-        // console.log('Direct referrals for', referrer, 'is now', directReferrals[referrer]);
         emit DirectReferralAdded(referrer, guy);
     }
 
     function getReferrer(address guy) external view returns (address) {
-        // console.log('Getting referrer for', guy, 'which is', referrers[guy]);
         return referrers[guy];
     }
 
