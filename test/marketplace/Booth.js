@@ -99,13 +99,27 @@ describe("Booth Tests", function () {
             const nftId = 1;
             const qty = 1;
             const guy = buyer.address
+            
+            // console.log((await ticket.stock(tokenId)).toString());
+            const currentStock = await ticket.getStock(tokenId);
+            // console.log('Initial Stock',currentStock)
+            await booth.grantRole(await booth.BUYER_ROLE(), buyer.address);
             await booth.connect(buyer).buy(tokenId, nftId, qty, guy,{ value: nftPrice.mul(qty) });
+
+            const finalStock = await ticket.getStock(tokenId);
+            // console.log('Final Stock', finalStock)
+            
+            // Expect the initial stock to match the initial stock set in the Ticket contract
+            expect(currentStock).to.equal(initialStock);
+            // Expect the final stock to be equal to the initial stock minus the quantity of NFTs bought
+            expect(finalStock).to.equal(initialStock - qty);
         });
 
         it("Buy NFT with Discount", async function () {
             const nftId = 1;
             const qty = 1;
             const guy = buyer.address
+            await booth.grantRole(await booth.BUYER_ROLE(), buyer.address);
             await booth.connect(buyer).buy(tokenId, nftId, qty, guy, { value: ethers.utils.parseEther("0.005") });
         });
     });
@@ -124,6 +138,7 @@ describe("Booth Tests", function () {
             const initialBuyerEthBalance = await ethers.provider.getBalance(guy);
 
             // Buy NFT
+            await booth.grantRole(await booth.BUYER_ROLE(), buyer.address);
             await booth.connect(buyer).buy(tokenId, nftId, qty, guy, { value: nftPrice.mul(qty) });
 
             // Verify Ownership
