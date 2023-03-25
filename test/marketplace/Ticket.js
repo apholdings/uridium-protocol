@@ -8,8 +8,7 @@ describe("Ticket Tests", function () {
   const uri = "https://boomslag.com/api/courses/nft/";
   const royaltyPercentage = 500; // 5% represented in basis points (100 basis points = 1%)
   const initialStock = 30;
-  const ticketId = 1;
-  const nftId = 123;
+  const tokenId = 123;
 
   beforeEach(async function () {
     [owner, seller, buyer, buyer2, royaltyReceiver] = await ethers.getSigners();
@@ -17,7 +16,7 @@ describe("Ticket Tests", function () {
     // Deploy Ticket Contract
     Ticket = await ethers.getContractFactory("Ticket");
     ticket = await Ticket.deploy(
-      nftId,
+      tokenId,
       nftPrice,
       initialStock,
       royaltyReceiver.address,
@@ -39,7 +38,7 @@ describe("Ticket Tests", function () {
   });
 
   it("Check max supply", async function () {
-    expect(await ticket.stock(nftId)).to.equal(initialStock);
+    expect(await ticket.stock(tokenId)).to.equal(initialStock);
   });
 
   it("Change price", async function () {
@@ -48,36 +47,50 @@ describe("Ticket Tests", function () {
     expect(await ticket.price()).to.equal(newPrice);
   });
 
-    it("Verify URI", async function () {
-        await ticket.connect(buyer).mint(ticketId, nftId, 1, buyer.address, { value: nftPrice });
-        console.log('NFT Metadata URI: ',await ticket.uri(nftId))
-        expect(await ticket.uri(nftId)).to.equal(uri + nftId + ".json");
+  it("Verify URI", async function () {
+    const nftId = 1;
+    const qty = 1;
+    const guy = buyer.address
+    
+    await ticket.connect(buyer).mint(tokenId, nftId, qty, guy, { value: nftPrice });
+    console.log('NFT Metadata URI: ',await ticket.uri(nftId))
+    expect(await ticket.uri(nftId)).to.equal(uri + nftId + ".json");
   });
 
   it("Mint directly using the ticket", async function () {
-    await ticket.connect(buyer).mint(ticketId, nftId, 1, buyer.address, { value: nftPrice });
+    const nftId = 1;
+    const qty = 1;
+    const guy = buyer.address
+    
+    await ticket.connect(buyer).mint(tokenId, nftId, qty, guy, { value: nftPrice });
     expect(await ticket.balanceOf(buyer.address, nftId)).to.equal(1);
   });
-
+  
   it("Test hasAccess method", async function () {
-    await ticket.connect(buyer).mint(ticketId, nftId, 1, buyer.address, { value: nftPrice });
-    expect(await ticket.hasAccess(ticketId, buyer.address)).to.equal(true);
-    expect(await ticket.hasAccess(ticketId, buyer2.address)).to.equal(false);
+    const nftId = 1;
+    const qty = 1;
+    const guy = buyer.address
+    await ticket.connect(buyer).mint(tokenId, nftId, qty, guy, { value: nftPrice });
+    expect(await ticket.hasAccess(tokenId, buyer.address)).to.equal(true);
+    expect(await ticket.hasAccess(tokenId, buyer2.address)).to.equal(false);
   });
-
+  
   describe("Royalties", function () {
     beforeEach(async function () {
+      const nftId = 1;
+      const qty = 1;
+      const guy = buyer.address
       // Mint a ticket for the buyer
-      await ticket.connect(buyer).mint(ticketId, nftId, 1, buyer.address, { value: nftPrice });
+      await ticket.connect(buyer).mint(tokenId, nftId, qty, guy, { value: nftPrice });
     });
 
     it("Check royalty receiver", async function () {
-      const [receiver,] = await ticket.royaltyInfo(nftId, nftPrice);
+      const [receiver,] = await ticket.royaltyInfo(tokenId, nftPrice);
       expect(receiver).to.equal(royaltyReceiver.address);
     });
 
     it("Check royalty percentage", async function () {
-      const [, royaltyAmount] = await ticket.royaltyInfo(nftId, nftPrice);
+      const [, royaltyAmount] = await ticket.royaltyInfo(tokenId, nftPrice);
       const expectedRoyaltyAmount = nftPrice.mul(royaltyPercentage).div(10000);
       expect(royaltyAmount).to.equal(expectedRoyaltyAmount);
     });
