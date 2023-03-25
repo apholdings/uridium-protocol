@@ -44,7 +44,6 @@ contract Booth is IERC165, IERC1155Receiver, AccessControl {
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(BOOTH_ROLE, msg.sender);
-        _grantRole(BUYER_ROLE, msg.sender);
     }
 
     // Register a new object and its corresponding ticket contract
@@ -54,11 +53,11 @@ contract Booth is IERC165, IERC1155Receiver, AccessControl {
         objectToTicket[_objectId] = ticketContract;
     }
 
-    function setDiscountBuyer(address buyer) public onlyRole(BOOTH_ROLE) {
+    function setBuyer(address buyer) public onlyRole(BOOTH_ROLE) {
         _grantRole(BUYER_ROLE, buyer);
     }
 
-    function joinAffiliateProgramAndBuy(uint256 _objectId, uint256 nftId, uint256 qty, address referrer) public payable onlyRole(BUYER_ROLE){
+    function joinAffiliateProgramAndBuy(uint256 _objectId, uint256 nftId, uint256 qty, address referrer) public payable {
         require(!ticketAffiliates[_objectId][msg.sender], "Already an affiliate for this NFT");
         // Call the affiliateBuy function to handle the purchase and commission payment
         affiliateBuy(_objectId, nftId, qty, msg.sender);
@@ -69,7 +68,7 @@ contract Booth is IERC165, IERC1155Receiver, AccessControl {
     }
 
     // Add this function to allow new affiliates to join the program for a specific course
-    function joinAffiliateProgram(uint256 _objectId, address referrer) external onlyRole(BUYER_ROLE){
+    function joinAffiliateProgram(uint256 _objectId, address referrer) external {
         require(address(objectToTicket[_objectId]) != address(0), "Invalid object");
 
         // Store the course tokenId and affiliate's address
@@ -82,23 +81,25 @@ contract Booth is IERC165, IERC1155Receiver, AccessControl {
     }
 
     // Verify owner of the ticket
-    function hasAccess(uint256 _objectId, address _usr) public view returns (bool) {
+    function hasAccess(uint256 _objectId, address _usr) public view  returns (bool) {
         Ticket ticketContract = objectToTicket[_objectId];
         require(address(ticketContract) != address(0), "Invalid object");
         return ticketContract.hasAccess(_objectId, _usr);
     }
 
     // Function to mint ticket NFT
-    function buy(uint256 _objectId, uint256 nftId, uint256 qty, address guy) public payable {
+    function buy(uint256 _objectId, uint256 nftId, uint256 qty, address guy) public payable onlyRole(BUYER_ROLE) {
         Ticket ticketContract = objectToTicket[_objectId];
         require(address(ticketContract) != address(0), "Invalid object");
         // Buy the NFT from the ticket contract
         ticketContract.mint{value: msg.value}(_objectId, nftId, qty, guy);
         setPurchaseTime(_objectId, nftId, qty, msg.value, block.timestamp);
+
+        _revokeRole(BUYER_ROLE, msg.sender);
     }
 
     // Function to mint ticket NFT and pay affiliate commissions
-    function affiliateBuy(uint256 _objectId, uint256 nftId, uint256 qty, address guy) public payable {
+    function affiliateBuy(uint256 _objectId, uint256 nftId, uint256 qty, address guy) public payable onlyRole(BUYER_ROLE)  {
         Ticket ticketContract = objectToTicket[_objectId];
         require(address(ticketContract) != address(0), "Invalid object");
         uint256 commission = msg.value * 25 / 100; // Calculate the commission (25% of msg.value)
