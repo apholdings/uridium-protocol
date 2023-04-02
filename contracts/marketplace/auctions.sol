@@ -7,9 +7,11 @@ import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "./ticket.sol";
 
+/// @custom:security-contact security@boomslag.com
 contract Auctions is IERC165, IERC1155Receiver, AccessControl {
+    // Safemath to avoid overflows
     using SafeMath for uint256;
-
+    // Define a constant role for the booth role
     bytes32 public constant AUCTION_ROLE = keccak256("AUCTION_ROLE");
 
     struct Auction {
@@ -23,17 +25,16 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl {
         bool ended;
     }
 
-    mapping(uint256 => Auction) public auctions;
-    mapping(address => uint256[]) public userAuctions;
-    mapping(address => mapping(uint256 => uint256)) public biddingHistory;
-    uint256 public nextAuctionId;
-
+    // Contract address for the Ticket contract used in the auctions
     Ticket public ticketContract;
-
-    event AuctionCreated(uint256 indexed auctionId, address indexed seller, uint256 ticketId,uint256 nftId, uint256 startingPrice, uint256 endTime);
-    event BidPlaced(uint256 indexed auctionId, address indexed bidder, uint256 amount);
-    event BidRefunded(uint256 indexed auctionId, address indexed bidder, uint256 amount);
-    event AuctionEnded(uint256 indexed auctionId, address indexed seller, address indexed winner, uint256 amount);
+    // Mapping of auction ID to the corresponding Auction struct
+    mapping(uint256 => Auction) public auctions;
+    // Mapping of user address to an array of auction IDs they have participated in
+    mapping(address => uint256[]) public userAuctions;
+    // Mapping of user address and auction ID to the amount they have bid
+    mapping(address => mapping(uint256 => uint256)) public biddingHistory;
+    // Counter for generating unique IDs for new auctions
+    uint256 public nextAuctionId;
 
     constructor(
         Ticket _ticketContract
@@ -45,6 +46,12 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl {
         _grantRole(AUCTION_ROLE, msg.sender);
     }
 
+    event AuctionCreated(uint256 indexed auctionId, address indexed seller, uint256 ticketId,uint256 nftId, uint256 startingPrice, uint256 endTime);
+    event BidPlaced(uint256 indexed auctionId, address indexed bidder, uint256 amount);
+    event BidRefunded(uint256 indexed auctionId, address indexed bidder, uint256 amount);
+    event AuctionEnded(uint256 indexed auctionId, address indexed seller, address indexed winner, uint256 amount);
+
+    // Function to create an auction
     function createAuction(
         uint256 _ticketId,
         uint256 _nftId,
@@ -76,7 +83,7 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl {
         userAuctions[msg.sender].push(auctionId);
         emit AuctionCreated(auctionId, msg.sender, _ticketId,_nftId, _startingPrice, auctions[auctionId].endTime);
     }
-
+    // Function to place bid, it refunds the highest bidder
     function placeBid(uint256 _auctionId) public payable {
         Auction storage auction = auctions[_auctionId];
         require(block.timestamp < auction.endTime, "Auction has ended");
@@ -96,7 +103,7 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl {
 
         emit BidPlaced(_auctionId, msg.sender, msg.value);
     }
-
+    // Function to end an earlier
     function endAuction(uint256 _auctionId) public onlyRole(AUCTION_ROLE) {
         Auction storage auction = auctions[_auctionId];
         require(!auction.ended, "Auction has already ended");
@@ -112,13 +119,13 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl {
         (bool success, ) = auction.seller.call{value: auction.highestBid}("");
         require(success, "Failed to transfer funds to the seller");
     }
-
+    // Function to withdraw funds from the Auctions contract if necessary
     function withdraw() public onlyRole(AUCTION_ROLE) {
         uint256 amount = address(this).balance;
         require(amount > 0, "No funds to withdraw");
         payable(msg.sender).transfer(amount);
     }
-
+    // Function to get remaining time for an auction
     function getRemainingTime(uint256 _auctionId) public view returns (uint256) {
         Auction storage auction = auctions[_auctionId];
         if (block.timestamp >= auction.endTime) {
@@ -127,15 +134,15 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl {
             return auction.endTime.sub(block.timestamp);
         }
     }
-
+    // Function to get active auctions for a specific user
     function getActiveAuctions(address user) public view returns (uint256[] memory) {
         return userAuctions[user];
     }
-
+    // Function to get user bidding history for an auction
     function getUserBiddingHistory(address user, uint256 auctionId) public view returns (uint256) {
         return biddingHistory[user][auctionId];
     }
-
+    // Interface to allow receiving ERC1155 tokens.
     function onERC1155Received(
         address,
         address,
@@ -145,7 +152,7 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl {
     ) external pure override returns (bytes4) {
         return this.onERC1155Received.selector;
     }
-
+    // Interface to allow receiving batch ERC1155 tokens.
     function onERC1155BatchReceived(
         address,
         address,

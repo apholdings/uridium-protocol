@@ -8,10 +8,12 @@ import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
 import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
+
 /// @custom:security-contact security@boomslag.com
 contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC2981 {
     // Define a constant role for the booth role
     bytes32 public constant BOOTH_ROLE = keccak256("BOOTH_ROLE");
+
     // Price of the NFT
     uint256 public price;
     // ID of the NFT
@@ -26,7 +28,7 @@ contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC29
     address public royaltyReceiver;
     // Percentage of royalties to be paid (out of 10000)
     uint256 public royaltyPercentage;
-    // Constructor function
+    
     constructor(
         uint256 _tokenId, // ID of the NFT
         uint256 _price, // Price of the NFT
@@ -40,7 +42,9 @@ contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC29
     ERC1155(_uri) 
     PaymentSplitter(_payees, _shares)
     {
+        // set the tokenID, a random integer number
         tokenId = _tokenId;
+        // Set the price for the token
         price = _price;
         // Set the unlimitedStock value based on the initial stock
         unlimitedStock = _initialStock == 0;
@@ -49,17 +53,14 @@ contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC29
         }
         royaltyReceiver = _royaltyReceiver;
         royaltyPercentage = _royaltyPercentage;
+
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(BOOTH_ROLE, msg.sender);
     }
 
-    // Event emitted when NFTs are minted
     event Mint(uint256 indexed id, uint256 qty);
-    // Event emitted when the URI is set
     event SetUri(string newuri);
-    // Event emitted when the contract is stopped
     event Stop();
-    // Event emitted when the contract is started
     event Start();
 
     // Function to retrieve royalty information for a given token and sale price
@@ -67,12 +68,10 @@ contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC29
         receiver = royaltyReceiver;
         royaltyAmount = (_salePrice * royaltyPercentage) / 10000;
     }
-
     // Function to set the stock limit for a given token
     function setStock(uint256 _tokenId, uint256 _stock) public onlyRole(DEFAULT_ADMIN_ROLE) {
         stock[_tokenId] = _stock;
     }
-    
     // Function to set the NFT URI metadata
     function setURI(string memory newuri) public onlyRole(DEFAULT_ADMIN_ROLE) {
         // Sets the new URI for the token
@@ -80,19 +79,11 @@ contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC29
         // Emits an event with the new URI
         emit SetUri(newuri);
     }
-
-    // Function to set DiscountBuyer role
-    function setDiscountBuyer(address buyer) public onlyRole(DEFAULT_ADMIN_ROLE) {
-        // Grants the BOOTH_ROLE to a specified buyer address
-        _grantRole(BOOTH_ROLE, buyer);
-    }
-
     // Function to Update NFT price
     function updatePrice(uint256 newPrice) public onlyRole(DEFAULT_ADMIN_ROLE) {
         // Updates the price of the NFT ticket
         price = newPrice;
     }
-
     // Function to mint NFTs
     function mint(uint256 _tokenId, uint256 _nftId, uint256 _qty, address _guy) public payable {
         // If the caller is not the BOOTH_ROLE, apply the requirement
@@ -101,7 +92,7 @@ contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC29
         }
         // Check if the NFT stock limit has been reached
         if (!unlimitedStock) {
-            uint256 remainingStock = getStock(_tokenId);
+            uint256 remainingStock = stock[_tokenId];
             require(remainingStock >= _qty, "NFT Out of Stock");
             // Update the stock mapping
             stock[_tokenId] = remainingStock - _qty;
@@ -112,13 +103,15 @@ contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC29
         // Record the NFTs that the user has minted for this ticket
         userNFTs[_tokenId][_guy] = _nftId;
     }
-
     // Function to get the remaining stock of a token
-    function getStock(uint256 _tokenId) public view returns (uint256) {
-        // Calculate the remaining stock by subtracting the total supply from the stock limit
-        return unlimitedStock ? type(uint256).max : stock[_tokenId] - totalSupply(_tokenId);
+    function getStock(uint256 _tokenId) public view returns (int256) {
+        if (unlimitedStock) {
+            return -1;
+        } else {
+            // Calculate the remaining stock by subtracting the total supply from the stock limit
+            return int256(stock[_tokenId]) - int256(totalSupply(_tokenId));
+        }
     }
-
     // Function to Verify User has access to NFT, see if it is in his balance
     function hasAccess(uint256 ticketId, address usr) public view returns (bool) {
         // Retrieves the NFT ID that the user has minted for the specified ticket
@@ -126,7 +119,18 @@ contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC29
         // Checks if the user has an NFT for the specified ticket
         return balanceOf(usr, nftId) > 0;
     }
+    // Function to get the first NFT ID in the balance for a specific ticket and user
+    function getNftId(uint256 ticketId, address usr) public view returns (uint256) {
+        // Retrieve the NFT ID that the user has minted for the specified ticket
+        uint256 nftId = userNFTs[ticketId][usr];
 
+        // Check if the user has an NFT for the specified ticket
+        if (balanceOf(usr, nftId) > 0) {
+            return nftId;
+        }
+
+        return 0; // Return 0 if the user does not have an NFT for the specified ticket
+    }
     // Function to Get NFT Metadata
     function uri(uint256 _id) public view virtual override returns (string memory) {
         // Checks if the specified token exists
@@ -134,7 +138,6 @@ contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC29
         // Retrieves the URI for the token and appends the token ID to the end of the URI
         return string(abi.encodePacked(super.uri(_id),Strings.toString(_id), ".json" ));
     }
-
     // Function to Mint Multiple NFTs at Once
     function mintBatch(address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data)
         public
@@ -151,7 +154,6 @@ contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC29
         super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
         // Assuming only one token is transferred at a time
     }
-
     // The following functions are overrides required by Solidity.
     function supportsInterface(bytes4 interfaceId)
         public

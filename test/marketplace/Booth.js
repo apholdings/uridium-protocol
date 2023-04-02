@@ -9,6 +9,7 @@ describe("Booth Tests", function () {
     const initialStock = 30;
     const tokenId = 123;
     const royaltyPercentage = 500; // 5% represented in basis points (100 basis points = 1%)
+    const commissionPercent = 25; // 5% represented in basis points (100 basis points = 1%)
 
     const maxReferralDepth = 5; // MLM Max number of Hierarchy
 
@@ -61,7 +62,7 @@ describe("Booth Tests", function () {
             
         // Deploy Booth Contract
         Booth = await ethers.getContractFactory("Booth");
-        booth = await Booth.deploy(affiliates.address);
+        booth = await Booth.deploy(affiliates.address,commissionPercent);
         await booth.deployed();
         
         // Register the objectId and its corresponding ticket contract
@@ -152,7 +153,7 @@ describe("Booth Tests", function () {
 
     describe("Affiliate System", function () {
         it("Join affiliate program without buying", async function () {
-            await booth.grantRole(await booth.BUYER_ROLE(), affiliate.address);
+            // await booth.grantRole(await booth.BUYER_ROLE(), affiliate.address);
             await booth.connect(affiliate).joinAffiliateProgram(tokenId, owner.address);
             expect(await booth.verifyAffiliate(tokenId, affiliate.address)).to.be.true;
         });

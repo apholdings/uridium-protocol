@@ -71,8 +71,10 @@ describe("Ticket Tests", function () {
     const qty = 1;
     const guy = buyer.address
     await ticket.connect(buyer).mint(tokenId, nftId, qty, guy, { value: nftPrice });
+    // await ticket.connect(buyer).mint(tokenId, 2, qty, guy, { value: nftPrice });
     expect(await ticket.hasAccess(tokenId, buyer.address)).to.equal(true);
     expect(await ticket.hasAccess(tokenId, buyer2.address)).to.equal(false);
+    console.log(await ticket.getNftId(tokenId,guy))
   });
   
   describe("Royalties", function () {
