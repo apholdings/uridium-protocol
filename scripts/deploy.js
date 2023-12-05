@@ -57,12 +57,16 @@ async function main() {
       const royaltyPercentage = 500; // 5% represented in basis points (100 basis points = 1%)
       const initialStock = 30;
       const nftId = 1;
+      const useStock = false;
+      const limitedEdition = false;
       const uri = "https://boomslag.com/api/courses/nft/";
       
       const ticket = await Ticket.deploy(
           nftId,
           nftPrice,
           initialStock,
+          useStock,
+          limitedEdition,
           royaltyReceiver,
           royaltyPercentage,
           [platformAddress, originNFTAddress],
@@ -80,10 +84,13 @@ async function main() {
       await sleep(45 * 1000)
       await hre.run("verify:verify", {
         address: ticket.address,
+        contract: "contracts/marketplace/ticket.sol:Ticket",
         constructorArguments: [
           nftId,
           nftPrice,
           initialStock,
+          useStock,
+          limitedEdition,
           royaltyReceiver,
           royaltyPercentage,
           [platformAddress, originNFTAddress],
@@ -91,7 +98,6 @@ async function main() {
           uri
         ],
       })
-    console.log('================ FINISHED Deploying Ticket Contract ================');
   
     console.log('================ STARTED Deploying Auctions Contract ================');
       const Auctions = await ethers.getContractFactory("Auctions");
@@ -108,21 +114,21 @@ async function main() {
       await sleep(45 * 1000)
       await hre.run("verify:verify", {
         address: auctions.address,
+        contract: "contracts/marketplace/auctions.sol:Auctions",
         constructorArguments: [ticket.address],
       })
-    console.log('================ FINISHED Deploying Auctions Contract ================');
   
     console.log('================ STARTED Deploying Affiliates Contract ================');
       const Affiliates = await ethers.getContractFactory("Affiliates");
 
       const maxReferralDepth = 5;  
       const referralRewardBasisPointsArray = [
-          [ 800, 1000, 1200, 1400, 1600], // Level 1: Bronze (Direct Referral)
-          [ 600,  800, 1000, 1200, 1400], // Level 2: Silver (Indirect Referral)
-          [ 400,  600,  800, 1000, 1200], // Level 3: Gold (Indirect Referral)
-          [ 200,  400,  600,  800, 1000], // Level 4: Platinum (Indirect Referral)
-          [ 100,  200,  400,  600,  800]  // Level 5: Diamond (Indirect Referral)
-        ]; // Represented in basis points
+          [1000, 1100, 1200, 1300, 1400],  // Level 1: Bronze 10%, Silver 11%, Gold 12%, Platinum 13%, Diamond 14%
+          [700,  850,  1000, 1150, 1300],  // Level 2: Increase by a factor that reduces the gap slightly but still provides incentive for higher ranks
+          [500,  650,  800,  950,  1100],  // Level 3: Same as above, continue reducing the gap
+          [300,  450,  600,  750,  900],   // Level 4: Continue the trend
+          [150,  300,  450,  600,  750]    // Level 5: By this level, the difference between ranks narrows as the depth increases
+      ];
 
       // Define the rank criteria
       const rankCriteriasArray = [
@@ -149,13 +155,13 @@ async function main() {
       await sleep(45 * 1000)
       await hre.run("verify:verify", {
         address: affiliates.address,
+        contract: "contracts/marketplace/affiliates.sol:Affiliates",
         constructorArguments: [
           referralRewardBasisPointsArray,
           rankCriteriasArray,
           maxReferralDepth
         ],
       })
-    console.log('================ FINISHED Deploying Affiliates Contract ================');
   
     console.log('================ STARTED Deploying Booth Contract ================');
     
@@ -173,30 +179,48 @@ async function main() {
       await sleep(45 * 1000)
       await hre.run("verify:verify", {
         address: booth.address,
+        contract: "contracts/marketplace/booth.sol:Booth",
         constructorArguments: [
           affiliates.address,
           commissionPercentage
         ],
       })
+  
+    console.log('================ STARTED Deploying Ticket Registry Contract ================');
+    
+      const TicketRegistry = await ethers.getContractFactory("TicketRegistry");
+      const ticket_registry = await TicketRegistry.deploy();
+
+      const ticket_registryReceipt = await ticket_registry.deployTransaction.wait();
+      console.log(`Ticket Registry deployed to: ${ticket_registry.address}`);
+      console.log(`Transaction hash: ${ticket_registryReceipt.transactionHash}`);
+      console.log(`Gas used: ${ticket_registryReceipt.gasUsed.toString()}`);
+      console.log(`MATIC Cost: ${web3.utils.fromWei((ticket_registryReceipt.gasUsed).toString(), "ether")}`);
+
+      // Delay of 45 seconds
+      await sleep(45 * 1000)
+      await hre.run("verify:verify", {
+        address: ticket_registry.address,
+        contract: "contracts/marketplace/ticket_registry.sol:TicketRegistry",
+        constructorArguments: [],
+      })
       
-    console.log('================ FINISHED Deploying Booth Contract ================');
       
     console.log('================ Granting Roles ================');
-      // Delay of 30 seconds
-      await sleep(30 * 1000)
       // Get the current gas price for grantRole methods
       const grantRoleGasPrice = await deployer.provider.getGasPrice();
       const increasedGrantRoleGasPrice = grantRoleGasPrice.add(ethers.BigNumber.from("1000000000")); // Add 1 Gwei to the current gas price
+      
       // Grant BOOTH_ROLE to the booth contract in the Ticket contract
       await ticket.grantRole(await ticket.BOOTH_ROLE(), booth.address, { gasPrice: increasedGrantRoleGasPrice });
       console.log('Ticket Contract Granted BOOTH role to Booth Contract')
+  
       // Grant BOOTH_ROLE to the booth contract in the Affiliates contract
       await affiliates.grantRole(await affiliates.BOOTH_ROLE(), booth.address, { gasPrice: increasedGrantRoleGasPrice });
       console.log('Affiliates Contract Granted BOOTH role to Booth Contract')
-    console.log('================ FINISHED Granting Roles ================');
 
     
-    console.log('================ FINAL DEPLOYMENT COSTS =================');
+      console.log('================ FINAL DEPLOYMENT COSTS =================');
       // Get the current price of MATIC in USD
       const maticUsdPrice = await getMaticUsdPrice();
 

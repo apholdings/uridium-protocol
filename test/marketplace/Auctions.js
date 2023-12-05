@@ -1,6 +1,5 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { BigNumber } = ethers;
 
 describe("Auctions Tests", function () { 
     let Ticket, ticket, Auctions, auctions;
@@ -13,6 +12,8 @@ describe("Auctions Tests", function () {
     const royaltyPercentage = 500; // 5% represented in basis points (100 basis points = 1%)
     const startingPrice = ethers.utils.parseEther("0.5");
     const auctionDuration = 86400; // 24 hours in seconds
+    const useStock = true;
+    const limitedEdition = false;
 
     beforeEach(async function () {
         [owner, seller, buyer, buyer2, buyer3, royaltyReceiver] = await ethers.getSigners();
@@ -23,6 +24,8 @@ describe("Auctions Tests", function () {
             tokenId,
             nftPrice,
             initialStock,
+            useStock,
+            limitedEdition,
             royaltyReceiver.address,
             royaltyPercentage,
             [owner.address, seller.address],

@@ -8,12 +8,10 @@ import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20FlashMint.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/draft-ERC20Permit.sol";
-
-
 import "./lib.sol";
 
 /// @custom:security-contact security@boomslag.com
-contract Galerium is ERC20, ERC20Burnable, Pausable,ReentrancyGuard, AccessControl, ERC20FlashMint, ERC20Permit, DSNote {
+contract DAI is ERC20, ERC20Burnable, Pausable,ReentrancyGuard, AccessControl, ERC20FlashMint, ERC20Permit, DSNote {
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
@@ -23,8 +21,8 @@ contract Galerium is ERC20, ERC20Burnable, Pausable,ReentrancyGuard, AccessContr
     );
 
     constructor() 
-    ERC20("Galerium", "GALR")
-    ERC20Permit("Galerium")
+    ERC20("Dai Stablecoin", "DAI")
+    ERC20Permit("Dai Stablecoin")
     {        
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(PAUSER_ROLE, msg.sender);

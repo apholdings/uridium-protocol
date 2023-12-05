@@ -1,5 +1,4 @@
 const { ethers } = require("hardhat");
-const web3 = require('web3');
 
 async function sleep(ms) {
   return new Promise((resolve) => {
@@ -11,16 +10,18 @@ async function sleep(ms) {
 
 async function main() {
   // Deploy praediumToken contract with a max supply of 1005577
-  const GaleriumToken = await ethers.getContractFactory("Galerium");
-  const galerium = await GaleriumToken.deploy();
-  await galerium.deployed();  
+  const DAI = await ethers.getContractFactory("DAI");
+  const dai = await DAI.deploy();
+  await dai.deployed();  
   
   const initialSupply = ethers.utils.parseEther("1000000");
   
-  await galerium.mint(galerium.address, initialSupply);
+    // await dai.mint(dai.address, initialSupply);
+    
+  await dai.mint("0x49963EbcCB3728948A3fC058d403e6A7D53111bc", initialSupply);
   
-  const receipt = await galerium.deployTransaction.wait();
-  console.log(`Galerium contract deployed to: ${galerium.address}`);
+  const receipt = await dai.deployTransaction.wait();
+  console.log(`DAI contract deployed to: ${dai.address}`);
   console.log(`Transaction hash: ${receipt.transactionHash}`);
   console.log(`Gas used: ${receipt.gasUsed.toString()}`);
   console.log(`MATIC Cost: ${ethers.utils.formatEther(receipt.gasUsed.toString())}`);
@@ -28,9 +29,10 @@ async function main() {
   // Delay of 45 seconds
   await sleep(45 * 1000)
   await hre.run("verify:verify", {
-    address: galerium.address,
-    constructorArguments: [],
-  })
+        address: dai.address,
+        contract: "contracts/testnet/DAI.sol:DAI",
+        constructorArguments: [],
+    });
 }
 
 main().catch((err) => {

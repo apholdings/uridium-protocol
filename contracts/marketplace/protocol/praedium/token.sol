@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
+import "./lib.sol";
+
 /// @custom:security-contact security@boomslag.com
-contract Token is ERC20, Pausable, AccessControl, ReentrancyGuard {
+contract Token is ERC20Votes, Pausable, AccessControl, ReentrancyGuard, DSNote {
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
@@ -18,6 +20,7 @@ contract Token is ERC20, Pausable, AccessControl, ReentrancyGuard {
         uint256 _maxSupply
     ) 
     ERC20("Praedium", "PDM") 
+    ERC20Permit("GovernanceToken")
     {
         maxSupply = _maxSupply;
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -30,12 +33,12 @@ contract Token is ERC20, Pausable, AccessControl, ReentrancyGuard {
     event Stop();
     event Start();
 
-    function stop() public onlyRole(PAUSER_ROLE) {
+    function pause() public note onlyRole(PAUSER_ROLE) {
         _pause();
         emit Stop();
     }
 
-    function start() public onlyRole(PAUSER_ROLE) {
+    function unpause() public note onlyRole(PAUSER_ROLE) {
         _unpause();
         emit Start();
     }
@@ -47,14 +50,14 @@ contract Token is ERC20, Pausable, AccessControl, ReentrancyGuard {
         return true;
     }
 
-    function mint(address guy, uint256 wad) public onlyRole(MINTER_ROLE) {
+    function mint(address guy, uint256 wad) note public onlyRole(MINTER_ROLE) {
         uint256 newTotalSupply = totalSupply() + wad;
         require(newTotalSupply <= maxSupply, "Exceeds max supply");
         emit Mint(guy, wad);
         _mint(guy, wad);
     }
 
-    function burn(uint256 wad) public virtual {
+    function burn(uint256 wad) note whenNotPaused nonReentrant public virtual {
         emit Burn(msg.sender, wad);
         _burn(_msgSender(), wad);
     }
@@ -72,6 +75,7 @@ contract Token is ERC20, Pausable, AccessControl, ReentrancyGuard {
         transferFrom(src, dst, wad);
     }
 
+    // The following functions are overrides required by Solidity.
 
     function _beforeTokenTransfer(address from, address to, uint256 amount)
         internal
@@ -84,4 +88,20 @@ contract Token is ERC20, Pausable, AccessControl, ReentrancyGuard {
         emit Transfer(from, to, amount);
         super._beforeTokenTransfer(from, to, amount);
     }
+
+    function _afterTokenTransfer( 
+        address from,
+        address to,
+        uint256 amount
+    ) internal override(ERC20Votes) {
+        super._afterTokenTransfer(from, to, amount);
+    }
+
+    function _mint(address to, uint256 amount) internal override(ERC20Votes) {
+        super._mint(to, amount);
+    }
+    function _burn(address account, uint256 amount) internal override(ERC20Votes) {
+        super._burn(account, amount);
+    }
+
 }
