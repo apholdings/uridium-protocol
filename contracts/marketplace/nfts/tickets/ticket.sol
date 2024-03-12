@@ -8,6 +8,8 @@ import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
 import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
+import "./ITicketRegistry.sol";
+
 
 /// @custom:security-contact security@boomslag.com
 contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC2981 {
@@ -39,6 +41,8 @@ contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC29
         - royaltyPercentage: The percentage of the sale price that will be paid as royalties. This is represented as a number out of 10000 (for example, 500 represents 5%).
     */
 
+    ITicketRegistry private ticketRegistry;
+    bool private isMintingActive = false;
     uint256 public price;
     uint256 public tokenId;
     mapping(uint256 => uint256) public stock;
@@ -46,7 +50,7 @@ contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC29
     bool public limitedEdition;
     address public royaltyReceiver;
     uint256 public royaltyPercentage;
-
+    
     /* 
     /////////////////////////////
     3. Constructor and Events
@@ -96,7 +100,9 @@ contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC29
         uint256 _royaltyPercentage,
         address[] memory _payees,
         uint256[] memory _shares,
-        string memory _uri
+        string memory _uri,
+        address _ticketRegistryAddress
+
     )
     ERC1155(_uri) 
     PaymentSplitter(_payees, _shares)
@@ -110,6 +116,8 @@ contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC29
         stock[tokenId] = _initialStock;
         royaltyReceiver = _royaltyReceiver;
         royaltyPercentage = _royaltyPercentage;
+        ticketRegistry = ITicketRegistry(_ticketRegistryAddress);
+
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
@@ -118,8 +126,6 @@ contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC29
     event StockUpdated(uint256 indexed tokenId, uint256 stock);
     event UseStockUpdated(bool useStock);
     event SetUri(string newuri);
-    event Stop();
-    event Start();
 
     /* 
     /////////////////////////////
@@ -130,33 +136,60 @@ contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC29
         For example, all functions that require BOOTH_ROLE should be together.
     */ 
 
-    // Function to set the stock limit for a given token
+    /**
+     * @notice Sets the stock limit for a specific token.
+     * @param _tokenId The ID of the token.
+     * @param _stock The stock limit to be set.
+     * @dev Only callable by users with DEFAULT_ADMIN_ROLE. Applies only if the token is not a limited edition.
+     */
     function setStock(uint256 _tokenId, uint256 _stock) public onlyRole(DEFAULT_ADMIN_ROLE) {
         if (!limitedEdition){
             stock[_tokenId] = _stock;
             emit StockUpdated(_tokenId, _stock);
         }
     }
-    // Function to set the stock limit for a given token
+    
+    /**
+     * @notice Enables or disables stock management for NFTs.
+     * @param _useStock True to enable stock management, false to disable it.
+     * @dev Only callable by users with DEFAULT_ADMIN_ROLE. Applies only if the token is not a limited edition.
+     */
     function setUseStock(bool _useStock) public onlyRole(DEFAULT_ADMIN_ROLE) {
         if (!limitedEdition){
             useStock = _useStock;
             emit UseStockUpdated(_useStock);
         }
     }
-    // Function to set the NFT URI metadata
+    
+    /**
+     * @notice Updates the base URI for all tokens.
+     * @param newuri The new base URI to be set.
+     * @dev Only callable by users with DEFAULT_ADMIN_ROLE. Emits an event with the new URI.
+     */
     function setURI(string memory newuri) public onlyRole(DEFAULT_ADMIN_ROLE) {
         // Sets the new URI for the token
         _setURI(newuri);
         // Emits an event with the new URI
         emit SetUri(newuri);
     }
-    // Function to Update NFT price
+    
+    /**
+     * @notice Updates the price of the NFT.
+     * @param newPrice The new price to be set.
+     * @dev Only callable by users with DEFAULT_ADMIN_ROLE. Updates the global price of the NFT ticket.
+     */
     function updatePrice(uint256 newPrice) public onlyRole(DEFAULT_ADMIN_ROLE) {
         // Updates the price of the NFT ticket
         price = newPrice;
     }
-    // Function to retrieve royalty information for a given token and sale price
+    
+    /**
+     * @notice Retrieves the royalty information for a token sale.
+     * @param _salePrice The sale price of the NFT.
+     * @return receiver The address entitled to receive the royalties.
+     * @return royaltyAmount The amount of royalty to be paid.
+     * @dev Assumes the royaltyPercentage is out of 10000 for percentage calculation.
+     */
     function royaltyInfo(uint256 /*_tokenId*/, uint256 _salePrice) external view override returns (address receiver, uint256 royaltyAmount) {
         receiver = royaltyReceiver;
         royaltyAmount = (_salePrice * royaltyPercentage) / 10000; // assuming the royaltyPercentage is out of 10000 for a percentage calculation
@@ -171,31 +204,48 @@ contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC29
             
     */ 
     
-    // Function to mint NFTs
+    /**
+     * @notice Mints a specific quantity of NFTs.
+     * @param _tokenId The ID of the token to mint.
+     * @param _nftId The ID of the NFT.
+     * @param _qty The quantity of NFTs to mint.
+     * @param _guy The address to receive the minted NFTs.
+     * @dev Requires the caller to pay the correct ETH amount if not having BOOTH_ROLE. Stock is checked if useStock is enabled.
+     */
     function mint(uint256 _tokenId, uint256 _nftId, uint256 _qty, address _guy) public payable {
         // If the caller is not the BOOTH_ROLE, apply the requirement
         if (!hasRole(BOOTH_ROLE, msg.sender)) {
              // Price check for regular buyers
             require(msg.value >= price * _qty, "Not Enough ETH to Buy NFT");
         }
+
         // Check if the NFT stock limit has been reached
         if (useStock) {
             uint256 remainingStock = stock[_tokenId];
             require(remainingStock >= _qty, "NFT Out of Stock");
-            // If it's a limited edition, prevent minting if out of stock
-            if (limitedEdition && remainingStock == 0) {
-                revert("Cannot mint limited edition NFT when out of stock");
-            }
             // Update the stock mapping
             stock[_tokenId] = remainingStock - _qty;
         }
+        
         // Mint new NFTs to the user and emit an event
         _mint(_guy, _nftId, _qty, "");
 
-        string memory nftUri = string(abi.encodePacked(super.uri(_nftId),Strings.toString(_nftId), ".json" ));
-        emit Mint(_tokenId, _nftId, _qty, msg.value, _guy, nftUri);
+        // Call TicketRegistry to update ownership
+        string memory _uri = string(abi.encodePacked(super.uri(_nftId),Strings.toString(_nftId), ".json" ));
+        isMintingActive = true;
+        ticketRegistry.specialUpdateOnMint(_guy, _tokenId, _nftId, _qty, msg.value, _uri);
+        isMintingActive = false;
+        emit Mint(_tokenId, _nftId, _qty, msg.value, _guy, _uri);
     }
-    // Function to Mint Multiple NFTs at Once
+    
+    /**
+     * @notice Mints a batch of NFTs to a specified address. (Disabled for this implementation)
+     * @param _to The address to receive the minted NFTs.
+     * @param _ids Array of token IDs to mint.
+     * @param _amounts Array of quantities for each token ID.
+     * @param _data Additional data (unused in this contract).
+     * @dev Method DISABLED: Only callable by users with DEFAULT_ADMIN_ROLE. Batch minting is disabled in this contract.
+     */
     function mintBatch(address _to, uint256[] memory _ids, uint256[] memory _amounts, bytes memory _data)
         public
         onlyRole(DEFAULT_ADMIN_ROLE)
@@ -203,25 +253,6 @@ contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC29
         // Mints a batch of NFTs to the specified address
         // _mintBatch(_to, _ids, _amounts, _data);
         // Mint Batch is Disabled in this contract
-    }
-    // Function to gift NFTs
-    function gift(uint256 _tokenId, uint256 _nftId, uint256 _qty, address _guy) public payable onlyRole(BOOTH_ROLE) {
-        // Check if the NFT stock limit has been reached
-        if (useStock) {
-            uint256 remainingStock = stock[_tokenId];
-            require(remainingStock >= _qty, "NFT Out of Stock");
-            // If it's a limited edition, prevent minting if out of stock
-            if (limitedEdition && remainingStock == 0) {
-                revert("Cannot mint limited edition NFT when out of stock");
-            }
-            // Update the stock mapping
-            stock[_tokenId] = remainingStock - _qty;
-        }
-        // Mint new NFTs to the user and emit an event
-        _mint(_guy, _nftId, _qty, "");
-
-        string memory nftUri = string(abi.encodePacked(super.uri(_nftId),Strings.toString(_nftId), ".json" ));
-        emit Mint(_tokenId, _nftId, _qty, 0, _guy, nftUri);
     }
 
     /* 
@@ -232,7 +263,20 @@ contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC29
         Include utility functions like isObjectRegistered and hasAccess.
     */ 
 
-    // Function to Get NFT Metadata
+    /**
+     * @notice Checks if the mint method is being used.
+     * @return The boolean value true or false.
+     */
+    function isCurrentlyMinting() external view returns (bool) {
+        return isMintingActive;
+    }
+
+    /**
+     * @notice Retrieves the URI for a specific token.
+     * @param _id The ID of the token.
+     * @return The URI associated with the token, appended with the token ID.
+     * @dev Ensures that the token exists before returning the URI.
+     */
     function uri(uint256 _id) public view virtual override returns (string memory) {
         // Checks if the specified token exists
         require(exists(_id),"URI: Token does not exist.");
@@ -240,17 +284,13 @@ contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC29
         return string(abi.encodePacked(super.uri(_id),Strings.toString(_id), ".json" ));
     }
 
-    // function getUserNFTIds(address usr) public view returns (uint256[] memory) {
-    //     return userOwnedNFTs[usr];
-    // }
-
     /* 
     /////////////////////////////
     7. ERC1155 and Interface Implementations
     /////////////////////////////
 
         Place the ERC1155 token reception and interface support functions at the end.
-    */ 
+    */
     
     function _beforeTokenTransfer(address operator, address from, address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data)
         internal
@@ -258,11 +298,17 @@ contract Ticket is ERC1155, AccessControl, ERC1155Supply, PaymentSplitter,IERC29
     {
         super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
 
-        for (uint256 i = 0; i < ids.length; i++) {
-            string memory nftUri = string(abi.encodePacked(super.uri(ids[i]),Strings.toString(ids[i]), ".json" ));
-            emit Transfer(from, to, ids[i], tokenId, amounts[i], nftUri);
+        // Check if this is a transfer (not minting or burning)
+        if (from != address(0) && to != address(0)) {
+            for (uint256 i = 0; i < ids.length; i++) { 
+                // Emit the Transfer event with NFT details
+                string memory _uri = string(abi.encodePacked(super.uri(ids[i]), Strings.toString(ids[i]), ".json" ));
+                ticketRegistry.specialUpdateOnTransfer(from, to, tokenId, ids[i], amounts[i], 0, _uri);
+                emit Transfer(from, to, ids[i], tokenId, amounts[i], _uri);
+            }
         }
     }
+
     // The following functions are overrides required by Solidity.
     function supportsInterface(bytes4 interfaceId)
         public

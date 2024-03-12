@@ -23,7 +23,12 @@
   "dependencies": {
     "@chainlink/contracts": "^0.6.1",
     "@openzeppelin/contracts": "^4.8.2",
+    "@uniswap/sdk-core": "^4.0.10",
+    "@uniswap/v3-core": "^1.0.1",
+    "@uniswap/v3-periphery": "^1.4.4",
+    "@uniswap/v3-sdk": "^3.10.2",
     "chai": "^4.3.7",
+    "ethers": "^5.7.2",
     "node-fetch": "^3.3.1",
     "web3": "^1.8.2"
   }

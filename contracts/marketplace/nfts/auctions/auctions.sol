@@ -10,13 +10,11 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 
 import "../tickets/ticket.sol";
+import "../tickets/registry.sol";
 import "./types.sol";
-
-import "hardhat/console.sol";
 
 /// @custom:security-contact security@boomslag.com
 contract Auctions is IERC165, IERC1155Receiver, AccessControl, ReentrancyGuard, Pausable {
-    // Safemath to avoid overflows
     using SafeMath for uint256;
 
     /* 
@@ -56,6 +54,7 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl, ReentrancyGuard, 
     */
 
     Ticket public ticketContract;
+    TicketRegistry public ticketRegistryContract;
     mapping(uint256 => SharedTypes.Auction) public auctions;
     mapping(address => uint256[]) public userAuctions;
     mapping(address => mapping(uint256 => uint256)) public biddingHistory;
@@ -67,7 +66,6 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl, ReentrancyGuard, 
 
     // User's active auctions
     mapping(address => uint256[]) public userActiveAuctions;
-
     mapping(uint256 => uint256) private activeAuctionIndex; // Maps auction ID to its index in activeAuctionIds array
     uint256[] private activeAuctionIds; // Dynamic array of active auction IDs
 
@@ -112,6 +110,7 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl, ReentrancyGuard, 
 
     constructor(
         Ticket _ticketContract,
+        TicketRegistry _ticketRegistryContract,
         uint256 _timeExtensionThreshold,
         uint256 _initialMinBidIncrement,
         uint256 _depositPercentage,
@@ -120,6 +119,7 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl, ReentrancyGuard, 
     ) 
     {
         ticketContract = _ticketContract;
+        ticketRegistryContract = _ticketRegistryContract;
         timeExtensionThreshold = _timeExtensionThreshold;
         minBidIncrement = _initialMinBidIncrement;
         depositPercentage = _depositPercentage;
@@ -151,11 +151,18 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl, ReentrancyGuard, 
         For example, all functions that require BOOTH_ROLE should be together.
     */ 
 
-    // Function to end an auction
+    /**
+     * @notice Ends an ongoing auction.
+     * @param _auctionId The ID of the auction to end.
+     * @dev This method handles the auction closure, transfers the NFT to the highest bidder, and distributes the bid amount between the seller and the platform based on the commission rate.
+     *      Can only be called by an account with the BOOTH_ROLE.
+     */
     function endAuction(uint256 _auctionId) public nonReentrant onlyRole(BOOTH_ROLE) {
         SharedTypes.Auction storage auction = auctions[_auctionId];
         require(!auction.ended, "Auction has already ended");
         require(block.timestamp >= auction.endTime, "Auction is still ongoing");
+
+        IERC1155 ticketContractInstance = IERC1155(auction.ticketContractAddress);
 
         auction.ended = true;
 
@@ -172,52 +179,89 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl, ReentrancyGuard, 
             (bool success, ) = auction.seller.call{value: sellerAmount}("");
             require(success, "Failed to transfer funds to the seller");
 
-            ticketContract.safeTransferFrom(address(this), auction.highestBidder, auction.nftId, 1, "");
+            ticketContractInstance.safeTransferFrom(address(this), auction.highestBidder, auction.nftId, 1, "");
 
             emit AuctionEnded(_auctionId, auction.seller, auction.highestBidder, auction.highestBid);
         } else {
-            ticketContract.safeTransferFrom(address(this), auction.seller, auction.nftId, 1, "");
+            ticketContractInstance.safeTransferFrom(address(this), auction.seller, auction.nftId, 1, "");
             emit AuctionEndedWithoutSale(_auctionId, auction.seller);
         }
 
         totalEndedAuctions++;
         updateAuctionStatus(auction.seller, _auctionId);
     }
-    // Function to withdraw funds from the Auctions contract if necessary
+
+    /**
+     * @notice Withdraws funds from the Auctions contract.
+     * @dev This method allows the withdrawal of accumulated funds in the contract. Can only be called by an account with the BOOTH_ROLE.
+     */
     function withdraw() public onlyRole(BOOTH_ROLE) {
         uint256 amount = address(this).balance;
         require(amount > 0, "No funds to withdraw");
         payable(msg.sender).transfer(amount);
     }
-    // Function to extend time threshold for a bid placed in the last second
+
+    /**
+     * @notice Sets a new time extension threshold for auction bids.
+     * @param _newThreshold The new time threshold in seconds.
+     * @dev This method updates the time extension threshold, which is used to extend the auction end time if a bid is placed near the closing time. Can only be called by an account with the BOOTH_ROLE.
+     */
     function setTimeExtensionThreshold(uint256 _newThreshold) public onlyRole(BOOTH_ROLE) {
         require(_newThreshold > 0, "Invalid threshold");
         timeExtensionThreshold = _newThreshold;
     }
-    // Function to set the minimum bid increment
+    
+    /**
+     * @notice Sets the minimum bid increment for auctions.
+     * @param _minBidIncrement The new minimum bid increment.
+     * @dev This method updates the minimum amount by which each new bid must exceed the previous one. Can only be called by an account with the BOOTH_ROLE.
+     */
     function setMinBidIncrement(uint256 _minBidIncrement) public onlyRole(BOOTH_ROLE) {
         require(_minBidIncrement > 0, "Minimum bid increment must be greater than 0");
         minBidIncrement = _minBidIncrement;
         emit MinBidIncrementChanged(_minBidIncrement);
     }
-    // Add a function to update deposit percentage (only by BOOTH_ROLE)
+    
+    /**
+     * @notice Updates the deposit percentage required for placing bids.
+     * @param _newPercentage The new deposit percentage.
+     * @dev This method sets the percentage of the bid amount that must be deposited by bidders. Can only be called by an account with the BOOTH_ROLE.
+     */
     function setDepositPercentage(uint256 _newPercentage) public onlyRole(BOOTH_ROLE) {
         depositPercentage = _newPercentage;
     }
-    // Add a function to update bid lock period (only by BOOTH_ROLE)
+    
+    /**
+     * @notice Sets a new lock period for bids.
+     * @param _newPeriod The new bid lock period in seconds.
+     * @dev This method updates the period during which a bid cannot be withdrawn after being placed. Can only be called by an account with the BOOTH_ROLE.
+     */
     function setBidLockPeriod(uint256 _newPeriod) public onlyRole(BOOTH_ROLE) {
         bidLockPeriod = _newPeriod;
     }
-    // Function to update the platform commission rate
+    
+    /**
+     * @notice Updates the platform commission rate for auctions.
+     * @param _newCommission The new commission rate in basis points.
+     * @dev This method sets the percentage of the final bid amount that will be taken as a commission by the platform. Can only be called by an account with the BOOTH_ROLE.
+     */
     function setPlatformCommission(uint256 _newCommission) public onlyRole(BOOTH_ROLE) {
         require(_newCommission >= 0 && _newCommission <= 10000, "Invalid commission rate");
         platformCommission = _newCommission;
     }
-    // Emergency method to halt auctions if a bug is found
+    
+    /**
+     * @notice Pauses all auction activities.
+     * @dev This emergency method halts all auction-related actions in case a bug or security issue is detected. Can only be called by an account with the BOOTH_ROLE.
+     */
     function pause() public onlyRole(BOOTH_ROLE) {
         _pause();
     }
-    // Emergency method to un-halt auctions if the bug is resolved
+    
+    /**
+     * @notice Resumes all auction activities.
+     * @dev This method is used to un-halt auction activities after a bug or security issue has been resolved. Can only be called by an account with the BOOTH_ROLE.
+     */
     function unpause() public onlyRole(BOOTH_ROLE) {
         _unpause();
     }
@@ -230,24 +274,34 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl, ReentrancyGuard, 
         Group together all functions related to creating auctions. 
     */ 
 
-    // Function to create an auction
+    /**
+     * @notice Creates a new auction for an NFT.
+     * @param _ticketContractAddress The erc20 address of the ticket contract to interact with.
+     * @param _tokenId The ID of the ticket contract.
+     * @param _nftId The ID of the NFT to be auctioned.
+     * @param _startingPrice The starting price of the auction.
+     * @param _duration The duration of the auction in seconds.
+     * @param _reservePrice The reserve price for the auction.
+     * @dev Transfers the NFT to the auction contract and initializes the auction. Can only be called when the contract is not paused.
+     */
     function createAuction(
-        uint256 _ticketId,
+        address _ticketContractAddress,
+        uint256 _tokenId,
         uint256 _nftId,
         uint256 _startingPrice,
         uint256 _duration,
         uint256 _reservePrice
-    ) public whenNotPaused nonReentrant isValidAuctionDuration(_duration) isNftOwner(_ticketId, _nftId) {
+    ) public whenNotPaused nonReentrant isValidAuctionDuration(_duration) isNftOwner(msg.sender, _tokenId) {
         uint256 auctionId = nextAuctionId;
         nextAuctionId++;
 
         // Transfer NFT to auction contract
-        ticketContract.safeTransferFrom(msg.sender, address(this), _nftId, 1, "");
+        IERC1155(_ticketContractAddress).safeTransferFrom(msg.sender, address(this), _nftId, 1, "");
 
         // Initialize the Auction struct
         SharedTypes.Auction storage newAuction = auctions[auctionId];
         newAuction.seller = msg.sender;
-        newAuction.ticketId = _ticketId;
+        newAuction.tokenId = _tokenId;
         newAuction.nftId = _nftId;
         newAuction.startingPrice = _startingPrice;
         newAuction.endTime = block.timestamp.add(_duration);
@@ -256,8 +310,7 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl, ReentrancyGuard, 
         newAuction.ended = false;
         newAuction.isOpen = true;
         newAuction.reservePrice = _reservePrice;
-
-        // No need to initialize mappings as they are already empty by default
+        newAuction.ticketContractAddress = _ticketContractAddress;
 
         // Add the new auction to the user's list of auctions
         userAuctions[msg.sender].push(auctionId);
@@ -272,9 +325,14 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl, ReentrancyGuard, 
         totalAuctions++;
         totalActiveAuctions++;
         // Emit the AuctionCreated event
-        emit AuctionCreated(auctionId, msg.sender, _ticketId, _nftId, _startingPrice, newAuction.endTime);
+        emit AuctionCreated(auctionId, msg.sender, _tokenId, _nftId, _startingPrice, newAuction.endTime);
     }
-    // Function to cancel an auction. Only the auction creator should be able to do this
+    
+    /**
+     * @notice Cancels an ongoing auction.
+     * @param _auctionId The ID of the auction to cancel.
+     * @dev Can only be called by the auction creator and when no bids have been placed. The NFT is returned to the seller.
+     */
     function cancelAuction(uint256 _auctionId) 
       public 
       whenNotPaused
@@ -285,12 +343,18 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl, ReentrancyGuard, 
     {
         SharedTypes.Auction storage auction = auctions[_auctionId];
         auction.isOpen = false;
+        IERC1155 ticketContractInstance = IERC1155(auction.ticketContractAddress);
         // Return NFT to seller
-        ticketContract.safeTransferFrom(address(this), msg.sender, auction.nftId, 1, "");
+        ticketContractInstance.safeTransferFrom(address(this), msg.sender, auction.nftId, 1, "");
         totalActiveAuctions--;
         emit AuctionCancelled(_auctionId);
     }
-    // Function to place bid, it refunds the highest bidder
+    
+    /**
+     * @notice Places a bid on an ongoing auction.
+     * @param _auctionId The ID of the auction to bid on.
+     * @dev Refunds the previous highest bidder and updates the auction's highest bid. Extends the auction time if the bid is placed near the auction end time. Ensures the bid is higher than the current highest bid and meets the minimum bid increment.
+     */
     function placeBid(uint256 _auctionId) 
         public
         payable
@@ -338,7 +402,12 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl, ReentrancyGuard, 
 
         emit BidPlaced(_auctionId, msg.sender, msg.value);
     }
-    // Function to withdraw bid, if user has an existing bid and it is not the leading bid
+    
+    /**
+     * @notice Withdraws a bid from an auction.
+     * @param _auctionId The ID of the auction to withdraw the bid from.
+     * @dev Allows a bidder to withdraw their bid if they are not the current highest bidder. The lock period must have elapsed for the withdrawal to be successful.
+     */
     function withdrawBid(uint256 _auctionId) 
       public
       whenNotPaused
@@ -371,12 +440,17 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl, ReentrancyGuard, 
         Include utility functions like getRemainingTime and getActiveAuctions.
     */ 
 
-
+    /**
+     * @notice Retrieves detailed information about a specific auction.
+     * @param _auctionId The ID of the auction to retrieve information for.
+     * @return AuctionInfo The detailed information about the auction.
+     * @dev Returns various details about the auction such as seller, ticket ID, NFT ID, prices, bids, and auction status.
+     */
     function getAuctionInfo(uint256 _auctionId) public view returns (SharedTypes.AuctionInfo memory) {
         SharedTypes.Auction storage auction = auctions[_auctionId];
         return SharedTypes.AuctionInfo({
             seller: auction.seller,
-            ticketId: auction.ticketId,
+            tokenId: auction.tokenId,
             nftId: auction.nftId,
             startingPrice: auction.startingPrice,
             endTime: auction.endTime,
@@ -388,50 +462,73 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl, ReentrancyGuard, 
         });
     }
 
+    /**
+     * @notice Retrieves a list of auction IDs created by a specific user.
+     * @param user The address of the user whose auctions are being queried.
+     * @return uint256[] The list of auction IDs created by the user.
+     * @dev Returns the IDs of all auctions that the specified user has created.
+     */
     function getUserAuctions(address user) public view returns (uint256[] memory) {
         return userAuctions[user];
     }
 
+    /**
+     * @notice Retrieves a list of active auction IDs for a specific user.
+     * @param user The address of the user whose active auctions are being queried.
+     * @return uint256[] The list of active auction IDs for the user.
+     * @dev Returns the IDs of all ongoing auctions that the specified user has created.
+     */
     function getUserActiveAuctions(address user) public view returns (uint256[] memory) {
         return userActiveAuctions[user];
     }
 
-    // function getActiveAuctions() public view returns (uint256[] memory) {
-    //     return activeAuctions;
-    // }
-
-    // function getEndedAuctions() public view returns (uint256[] memory) {
-    //     return endedAuctions;
-    // }
-
+    /**
+     * @notice Retrieves a list of all bids placed in a specific auction.
+     * @param _auctionId The ID of the auction.
+     * @return Bid[] The list of bids made in the auction.
+     * @dev Returns all bids placed in the specified auction, including bidder addresses, bid amounts, and timestamps.
+     */
     function getAuctionBids(uint256 _auctionId) public view returns (SharedTypes.Bid[] memory) {
         return auctionBids[_auctionId];
     }
 
+    /**
+     * @notice Retrieves the total amount bid by a user in a specific auction.
+     * @param user The address of the user.
+     * @param auctionId The ID of the auction.
+     * @return uint256 The total amount bid by the user in the auction.
+     * @dev Returns the cumulative amount that the specified user has bid in the given auction.
+     */
     function getUserBiddingHistory(address user, uint256 auctionId) public view returns (uint256) {
         return biddingHistory[user][auctionId];
     }
 
+    /**
+     * @notice Retrieves the total number/count of auctions, active auction IDs, total active auctions, total ended auctions, or the time extension threshold.
+     * @return uint256 or uint256[] The requested number/count or list of IDs.
+     * @dev These methods provide various aggregate statistics about the auctions, including totals and specific IDs.
+     */
     function getTotalAuctions() public view returns (uint256) {
         return nextAuctionId;
     }
-
     function getActiveAuctionIds() public view returns (uint256[] memory) {
         return activeAuctionIds;
     }
-
     function getTotalActiveAuctions() public view returns (uint256) {
         return totalActiveAuctions;
     }
-
     function getTotalEndedAuctions() public view returns (uint256) {
         return totalEndedAuctions;
     }
-
     function getTimeExtensionThreshold() public view returns (uint256) {
         return timeExtensionThreshold;
     }
 
+    /**
+     * @notice Removes an auction from the active auctions list or updates the status of an auction.
+     * @param _auctionId The ID of the auction to be updated.
+     * @dev These methods handle the internal management of active auctions, including removing or updating auction statuses based on specific criteria.
+     */
     function removeActiveAuction(uint256 _auctionId) private {
         address seller = auctions[_auctionId].seller;
 
@@ -461,6 +558,12 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl, ReentrancyGuard, 
         delete userAuctionIndex[seller][_auctionId];
     }
 
+    /**
+     * @notice Updates the status of an auction, including its presence in active auctions lists.
+     * @param seller The address of the auction seller.
+     * @param _auctionId The ID of the auction to update.
+     * @dev Removes the auction from both the seller's and global active auctions lists and updates indexes.
+     */
     function updateAuctionStatus(address seller, uint256 _auctionId) private {
         // Ensure the seller has active auctions
         if (userActiveAuctions[seller].length == 0) {
@@ -501,56 +604,120 @@ contract Auctions is IERC165, IERC1155Receiver, AccessControl, ReentrancyGuard, 
         Include any require statements you might want to reuse later.
     */ 
 
- 
+    /**
+     * @notice Ensures that the provided auction duration is within a valid range.
+     * @param _duration The duration of the auction in seconds.
+     * @dev Requires that the auction duration is at least 1 hour and no more than 4 weeks. 1 hours or 1 minutes
+     */
     modifier isValidAuctionDuration(uint256 _duration) {
-        require(_duration >= 1 hours && _duration <= 4 weeks, "Invalid auction duration");
+        require(_duration >= 1 minutes && _duration <= 4 weeks, "Invalid auction duration");
         _;
     }
+
+    /**
+     * @notice Checks if the auction is still ongoing (not ended).
+     * @param _auctionId The ID of the auction.
+     * @dev Requires that the current timestamp is less than the auction's end time.
+     */
     modifier isOngoingAuction(uint256 _auctionId) {
         SharedTypes.Auction storage auction = auctions[_auctionId];
         require(block.timestamp < auction.endTime, "Auction has ended");
         _;
     }
+
+    /**
+     * @notice Ensures that the new bid is higher than the current highest bid in the auction.
+     * @param _auctionId The ID of the auction.
+     * @dev Requires that the sent value (msg.value) is greater than the highest bid of the auction.
+     */
     modifier isBidHigherThanCurrent(uint256 _auctionId) {
         SharedTypes.Auction storage auction = auctions[_auctionId];
         require(msg.value > auction.highestBid, "Bid must be higher than current highest bid");
         _;
     }
+
+    /**
+     * @notice Checks if the caller is the seller of the auction.
+     * @param _auctionId The ID of the auction.
+     * @dev Requires that the caller (msg.sender) is the seller of the specified auction.
+     */
     modifier isAuctionSeller(uint256 _auctionId) {
         SharedTypes.Auction storage auction = auctions[_auctionId];
         require(msg.sender == auction.seller, "Only seller can cancel");
         _;
     }
+
+    /**
+     * @notice Ensures that no bids have been placed in the auction.
+     * @param _auctionId The ID of the auction.
+     * @dev Requires that the highest bid in the auction is zero (no bids placed).
+     */
     modifier ifNoBidsArePlaced(uint256 _auctionId) {
         SharedTypes.Auction storage auction = auctions[_auctionId];
         require(auction.highestBid == 0, "Cannot cancel after bids are placed");
         _;
     }
+
+    /**
+     * @notice Checks if the auction is not already closed.
+     * @param _auctionId The ID of the auction.
+     * @dev Requires that the auction is still open.
+     */
     modifier isAuctionNotClosed(uint256 _auctionId) {
         SharedTypes.Auction storage auction = auctions[_auctionId];
         require(auction.isOpen, "Auction is already closed");
         _;
     }
+
+    /**
+     * @notice Ensures that the caller is not the current leading bidder in the auction.
+     * @param _auctionId The ID of the auction.
+     * @dev Requires that the caller (msg.sender) is not the highest bidder of the specified auction.
+     */
     modifier isNotLeadingBid(uint256 _auctionId) {
         SharedTypes.Auction storage auction = auctions[_auctionId];
         require(auction.highestBidder != msg.sender, "Cannot withdraw leading bid");
         _;
     }
+
+    /**
+     * @notice Checks if the caller has placed a bid in the auction.
+     * @param _auctionId The ID of the auction.
+     * @dev Requires that the caller (msg.sender) has a non-zero bid amount in the auction's bidding history.
+     */
     modifier ifUserHasBid(uint256 _auctionId) {
         SharedTypes.Auction storage auction = auctions[_auctionId];
         require(biddingHistory[msg.sender][_auctionId] > 0, "No bid to withdraw");
         _;
     }
-    modifier isNftOwner(uint256 _ticketId, uint256 _nftId) {
-        require(ticketContract.balanceOf(msg.sender, _nftId) > 0, "Sender does not own the NFT");
-        require(ticketContract.isApprovedForAll(msg.sender, address(this)), "Contract must be approved to transfer NFT");
+
+    /**
+     * @notice Ensures that the caller owns the specified NFT and has approved the contract to transfer it.
+     * @param _guy The address of the auction creator.
+     * @param _tokenId The ID of the Course Original Token.
+     * @dev Requires that the caller has a balance of the specified NFT and has set approval for the contract to manage their NFTs.
+     */
+    modifier isNftOwner(address _guy, uint256 _tokenId) {
+            require(ticketRegistryContract.doesUserOwnNFT(msg.sender, _tokenId), "Sender does not own the NFT");
         _;
     }
+
+    /**
+     * @notice Ensures that the bid is higher than the current highest bid by at least the minimum bid increment.
+     * @param _auctionId The ID of the auction.
+     * @dev Requires that the bid (msg.value) is at least higher than the highest bid plus the minimum bid increment.
+     */
     modifier isBidHigherThanMinimum(uint256 _auctionId) {
         SharedTypes.Auction storage auction = auctions[_auctionId];
         require(msg.value >= auction.highestBid + minBidIncrement, "Bid must be higher than current highest bid by the minimum increment");
         _;
     }
+
+    /**
+     * @notice Checks if the bid is above the minimum required bid amount.
+     * @param _auctionId The ID of the auction.
+     * @dev Requires that the bid (msg.value) meets or exceeds the minimum required bid, calculated as the highest bid plus the minimum bid increment.
+     */
     modifier isBidAboveMinRequired(uint256 _auctionId) {
         SharedTypes.Auction storage auction = auctions[_auctionId];
         uint256 minRequiredBid = auction.highestBid.add(minBidIncrement);

@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
+import "@openzeppelin/contracts/access/AccessControl.sol";
 
 import "./auctions.sol";
 import "./types.sol";
-
-import "hardhat/console.sol";
-
-import "@openzeppelin/contracts/access/AccessControl.sol";
-
 
 contract AuctionUtils is AccessControl {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
@@ -129,7 +125,7 @@ contract AuctionUtils is AccessControl {
     }
 
     // Function to get a limited list of auctions by NFT ID with pagination
-    function getAuctionsByNftId(uint256 _nftId, uint256 page, uint256 pageSize) 
+    function getAuctionsByTokenId(uint256 _tokenId, uint256 page, uint256 pageSize) 
         public view 
         returns (SharedTypes.AuctionInfo[] memory, uint256) 
     {
@@ -139,7 +135,7 @@ contract AuctionUtils is AccessControl {
         // First pass: count auctions with the matching NFT ID
         for (uint256 i = 0; i < totalAuctions; i++) {
             SharedTypes.AuctionInfo memory auction = auctionsContract.getAuctionInfo(i);
-            if (auction.nftId == _nftId) {
+            if (auction.tokenId == _tokenId) {
                 count++;
             }
         }
@@ -159,7 +155,7 @@ contract AuctionUtils is AccessControl {
         uint256 arrayIndex = 0;
         for (uint256 i = 0; i < totalAuctions && arrayIndex < (endIndex - startIndex); i++) {
             SharedTypes.AuctionInfo memory auction = auctionsContract.getAuctionInfo(i);
-            if (auction.nftId == _nftId) {
+            if (auction.tokenId == _tokenId) {
                 if (i >= startIndex && i < endIndex) {
                     paginatedAuctions[arrayIndex] = auction;
                     arrayIndex++;

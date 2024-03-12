@@ -5,7 +5,7 @@ contract SharedTypes {
 
     struct Auction {
         address seller;
-        uint256 ticketId;
+        uint256 tokenId;
         uint256 nftId;
         uint256 startingPrice;
         uint256 endTime;
@@ -16,11 +16,12 @@ contract SharedTypes {
         uint256 reservePrice;
         mapping(address => uint256) deposits;
         mapping(address => uint256) bidTimestamps;
+        address ticketContractAddress;
     }
 
     struct AuctionInfo {
         address seller;
-        uint256 ticketId;
+        uint256 tokenId;
         uint256 nftId;
         uint256 startingPrice;
         uint256 endTime;

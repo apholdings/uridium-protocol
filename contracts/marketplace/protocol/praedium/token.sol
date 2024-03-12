@@ -20,7 +20,7 @@ contract Token is ERC20Votes, Pausable, AccessControl, ReentrancyGuard, DSNote {
         uint256 _maxSupply
     ) 
     ERC20("Praedium", "PDM") 
-    ERC20Permit("GovernanceToken")
+    ERC20Permit("Praedium")
     {
         maxSupply = _maxSupply;
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -33,12 +33,12 @@ contract Token is ERC20Votes, Pausable, AccessControl, ReentrancyGuard, DSNote {
     event Stop();
     event Start();
 
-    function pause() public note onlyRole(PAUSER_ROLE) {
+    function stop() public note onlyRole(PAUSER_ROLE) {
         _pause();
         emit Stop();
     }
 
-    function unpause() public note onlyRole(PAUSER_ROLE) {
+    function start() public note onlyRole(PAUSER_ROLE) {
         _unpause();
         emit Start();
     }
@@ -53,21 +53,21 @@ contract Token is ERC20Votes, Pausable, AccessControl, ReentrancyGuard, DSNote {
     function mint(address guy, uint256 wad) note public onlyRole(MINTER_ROLE) {
         uint256 newTotalSupply = totalSupply() + wad;
         require(newTotalSupply <= maxSupply, "Exceeds max supply");
-        emit Mint(guy, wad);
         _mint(guy, wad);
+        emit Mint(guy, wad);
     }
 
-    function burn(uint256 wad) note whenNotPaused nonReentrant public virtual {
-        emit Burn(msg.sender, wad);
+    function burn(uint256 wad) note whenNotPaused public virtual {
         _burn(_msgSender(), wad);
+        emit Burn(msg.sender, wad);
     }
 
     // --- Alias ---
-    function push(address usr, uint wad) external {
+    function push(address usr, uint wad) external { // Gives tokens from user
         transferFrom(msg.sender, usr, wad);
     }
 
-    function pull(address usr, uint wad) external { // Pulls GALR tokens from user
+    function pull(address usr, uint wad) external { // Pulls tokens from user
         transferFrom(usr, msg.sender, wad);
     }
     
@@ -85,8 +85,8 @@ contract Token is ERC20Votes, Pausable, AccessControl, ReentrancyGuard, DSNote {
     {
         require(to != address(0) || totalSupply() <= maxSupply, "Cannot transfer to zero address after max supply reached");
 
-        emit Transfer(from, to, amount);
         super._beforeTokenTransfer(from, to, amount);
+        emit Transfer(from, to, amount);
     }
 
     function _afterTokenTransfer( 

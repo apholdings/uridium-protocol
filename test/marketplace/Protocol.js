@@ -9,6 +9,10 @@ let Ticket,
   booth,
   TicketRegistry,
   ticket_registry,
+  AffiliateUtils,
+  affiliate_utils,
+  BoothUtils,
+  booth_utils,
   AuctionUtilities,
   auction_utilities;
 let owner,
@@ -24,6 +28,7 @@ let owner,
   affiliate6,
   affiliate7,
   affiliate8,
+  affiliate10,
   affiliate9;
 
 const nftPrice = ethers.utils.parseEther('0.01');
@@ -31,7 +36,7 @@ const uri = 'https://api.boomslag.com/api/courses/nft/';
 const initialStock = 30;
 const tokenId = 123;
 const royaltyPercentage = 500; // 5% represented in basis points (100 basis points = 1%)
-const commissionPercent = 25; // 5% represented in basis points (100 basis points = 1%)
+const commissionPercent = 25; // up to 100% (Not represented in basis points)
 const useStock = true;
 const limitedEdition = false;
 
@@ -55,11 +60,11 @@ const maxReferralDepth = 5; // MLM Max number of Hierarchy
 // Level 5: Bronze 1%, Silver 2%,  Gold 4%,  Platinum 6%,  Diamond 8%
 
 const referralRewardBasisPointsArray = [
-  [1000, 1100, 1200, 1300, 1400], // Level 1: Bronze 10%, Silver 11%, Gold 12%, Platinum 13%, Diamond 14%
-  [700, 850, 1000, 1150, 1300], // Level 2: Increase by a factor that reduces the gap slightly but still provides incentive for higher ranks
-  [500, 650, 800, 950, 1100], // Level 3: Same as above, continue reducing the gap
-  [300, 450, 600, 750, 900], // Level 4: Continue the trend
-  [150, 300, 450, 600, 750], // Level 5: By this level, the difference between ranks narrows as the depth increases
+  [1000, 1050, 1100, 1150, 1200], // Level 1: Bronze 10%, Silver 10.5%, Gold 11%, Platinum 11.5%, Diamond 12%
+  [800, 850, 900, 950, 1000], // Level 2: Bronze 8%, Silver 8.5%, Gold 9%, Platinum 9.5%, Diamond 10%
+  [600, 650, 700, 750, 800], // Level 3: Bronze 6%, Silver 6.5%, Gold 7%, Platinum 7.5%, Diamond 8%
+  [400, 450, 500, 550, 600], // Level 4: Bronze 4%, Silver 4.5%, Gold 5%, Platinum 5.5%, Diamond 6%
+  [200, 250, 300, 350, 400], // Level 5: Bronze 2%, Silver 2.5%, Gold 3%, Platinum 3.5%, Diamond 4%
 ];
 
 // Define the rank criteria
@@ -87,7 +92,13 @@ beforeEach(async function () {
     affiliate7,
     affiliate8,
     affiliate9,
+    affiliate10,
   ] = await ethers.getSigners();
+
+  // Deploy ticket_registry Contract
+  TicketRegistry = await ethers.getContractFactory('TicketRegistry');
+  ticket_registry = await TicketRegistry.deploy();
+  await ticket_registry.deployed();
 
   // Deploy Affiliates Contract and set ranks
   Affiliates = await ethers.getContractFactory('Affiliates');
@@ -95,8 +106,13 @@ beforeEach(async function () {
     referralRewardBasisPointsArray,
     rankCriteriasArray,
     maxReferralDepth,
+    ticket_registry.address,
   );
   await affiliates.deployed();
+  // Deploy AffiliateUtils Contract
+  AffiliateUtils = await ethers.getContractFactory('AffiliateUtils');
+  affiliate_utils = await AffiliateUtils.deploy(affiliates.address);
+  await affiliate_utils.deployed();
 
   // Deploy Ticket Contract
   Ticket = await ethers.getContractFactory('Ticket');
@@ -111,6 +127,7 @@ beforeEach(async function () {
     [owner.address, seller.address],
     [10, 90],
     uri,
+    ticket_registry.address,
   ); // Payees, Shares
   await ticket.deployed();
 
@@ -118,6 +135,7 @@ beforeEach(async function () {
   Auctions = await ethers.getContractFactory('Auctions');
   auctions = await Auctions.deploy(
     ticket.address,
+    ticket_registry.address,
     timeExtensionThreshold,
     initialMinBidIncrement,
     depositPercentage,
@@ -132,16 +150,13 @@ beforeEach(async function () {
 
   // Deploy Booth Contract
   Booth = await ethers.getContractFactory('Booth');
-  booth = await Booth.deploy(affiliates.address, commissionPercent);
+  booth = await Booth.deploy(affiliates.address, commissionPercent, ticket_registry.address);
   await booth.deployed();
-
-  // Deploy ticket_registry Contract
-  TicketRegistry = await ethers.getContractFactory('TicketRegistry');
-  ticket_registry = await TicketRegistry.deploy();
-  await ticket_registry.deployed();
+  BoothUtils = await ethers.getContractFactory('BoothUtils');
+  booth_utils = await BoothUtils.deploy(booth.address);
+  await booth_utils.deployed();
 
   // Register the objectId and its corresponding ticket contract IMPORTANT STEP!
-  await booth.registerObject(tokenId, ticket.address);
   await ticket_registry.registerObject(tokenId, ticket.address);
 
   // Grant BOOTH Role to the Booth contract
@@ -152,12 +167,20 @@ beforeEach(async function () {
   await auctions.grantRole(await auctions.BOOTH_ROLE(), booth.address);
 
   await ticket.grantRole(await ticket.BOOTH_ROLE(), booth.address);
-  await ticket_registry.grantRole(await ticket_registry.BOOKING_ROLE(), booth.address);
+  await ticket_registry.grantRole(await ticket_registry.BOOTH_ROLE(), booth.address);
 });
 
-const testTicket = false;
+const testTicket = true;
 if (testTicket) {
   describe('Ticket Contract', function () {
+    async function mintNft(_tokenId, _nftId, _qty, _guy) {
+      const tx = await ticket
+        .connect(buyer)
+        .mint(_tokenId, _nftId, _qty, _guy, { value: nftPrice });
+      const tx_receipt = await tx.wait();
+      return { tx_receipt };
+    }
+
     describe('Deployment and Initial Settings', function () {
       it('should deploy the Ticket contract', async function () {
         expect(ticket.address).to.not.equal(0x0);
@@ -192,51 +215,13 @@ if (testTicket) {
         expect(await ticket.price()).to.equal(newPrice);
       });
 
-      it('should mint directly using the ticket and update the registry', async function () {
-        const nftId = 1;
-        const qty = 1;
-        const guy = buyer.address;
-        const tx = await ticket.connect(buyer).mint(tokenId, nftId, qty, guy, { value: nftPrice });
-        const receipt = await tx.wait();
-        const mintEvent = receipt.events.find((event) => event.event === 'Mint');
-        expect(mintEvent).to.exist;
-
-        expect(await ticket.balanceOf(buyer.address, nftId)).to.equal(1);
-
-        // Simulate listening for the Mint event and updating the TicketRegistry
-
-        // Ensure the test account has the BOOKING_ROLE in the TicketRegistry
-        await ticket_registry
-          .connect(owner)
-          .updateOwnershipOnMint(
-            mintEvent.args.guy,
-            mintEvent.args.tokenId,
-            mintEvent.args.nftId,
-            mintEvent.args.qty,
-            mintEvent.args.price,
-            mintEvent.args.uri,
-          );
-
-        // // Verify the update in the registry
-        const [ownedNFTs, totalNFTs] = await ticket_registry.getOwnedNFTs(guy, 1, 10);
-
-        const nftDetails = ownedNFTs[0];
-        // console.log('NFT ID', nftDetails.nftId)
-        // console.log('Token ID', nftDetails.tokenId)
-        // console.log('Owner', nftDetails.owner)
-        // console.log('Qty', nftDetails.qty)
-        // console.log('Price', nftDetails.price)
-        // console.log('URI', nftDetails.uri)
-
-        expect(nftDetails.nftId).to.equal(nftId);
-
-        // expect(nftDetails[0].toNumber()).to.equal(1)
-        expect(totalNFTs.toNumber()).to.equal(1);
+      it('should check max supply', async function () {
+        expect(await ticket.stock(tokenId)).to.equal(initialStock);
       });
 
       it('should verify URI', async function () {
         // Test URI verification
-        const nftId = 1;
+        const nftId = 56756645556;
         const qty = 1;
         const guy = buyer.address;
         await ticket.connect(buyer).mint(tokenId, nftId, qty, guy, { value: nftPrice });
@@ -244,94 +229,197 @@ if (testTicket) {
         expect(await ticket.uri(nftId)).to.equal(uri + nftId + '.json');
       });
 
-      it('should verify buyer has access', async function () {
-        const nftId = 1;
+      it('should mint directly using the ticket and update the registry', async function () {
+        const nftId = 547588675;
         const qty = 1;
         const guy = buyer.address;
+
+        // Check TokenID is registered in ticket_registry
+        expect(await ticket_registry.isObjectRegistered(tokenId)).to.be.true;
+
         const tx = await ticket.connect(buyer).mint(tokenId, nftId, qty, guy, { value: nftPrice });
         const receipt = await tx.wait();
         const mintEvent = receipt.events.find((event) => event.event === 'Mint');
         expect(mintEvent).to.exist;
-        expect(await ticket.balanceOf(buyer.address, nftId)).to.equal(1);
 
-        await ticket_registry
-          .connect(owner)
-          .updateOwnershipOnMint(
-            mintEvent.args.guy,
-            mintEvent.args.tokenId,
-            mintEvent.args.nftId,
-            mintEvent.args.qty,
-            mintEvent.args.price,
-            mintEvent.args.uri,
-          );
+        expect(await ticket_registry.doesUserOwnNFT(buyer.address, tokenId)).to.be.true;
 
-        // Verify buyer owns nft
-        // 1) getbalance
-        const nft_blance = await ticket.balanceOf(buyer.address, nftId);
-        // console.log(nft_blance)
-        expect(nft_blance).to.equal(1);
+        // // Simulate listening for the Mint event and updating the TicketRegistry
+        // // Ensure the test account has the BOOTH_ROLE in the TicketRegistry
+        // await ticket_registry
+        //   .connect(owner)
+        //   .updateOwnershipOnMint(
+        //     mintEvent.args.guy,
+        //     mintEvent.args.tokenId,
+        //     mintEvent.args.nftId,
+        //     mintEvent.args.qty,
+        //     mintEvent.args.price,
+        //     mintEvent.args.uri,
+        //   );
+        //////////////////////////////// This method is not necessary because we already call it within the tickes mint
 
-        // 2) ddoesUserOwnNFT
-        const user_owns_nft = await ticket_registry.doesUserOwnNFT(buyer.address, nftId);
-        // console.log(user_owns_nft)
-        expect(user_owns_nft).to.be.true;
+        // // Verify the update in the registry
+        const [ownedNFTs, totalNFTs] = await ticket_registry.getOwnedNFTs(guy, tokenId, 1, 10);
+        // console.log('Owned NFTs: ', ownedNFTs);
+        // console.log('totalNFTs: ', totalNFTs);
+
+        const nftDetails = ownedNFTs[0];
+
+        expect(nftDetails.nftId).to.equal(nftId);
+
+        // expect(nftDetails[0].toNumber()).to.equal(1)
+        expect(totalNFTs.toNumber()).to.equal(1);
       });
 
-      it("should verify buyer doens't has access after transfer", async function () {
-        const nftId = 1;
+      it('should verify buyer has access', async function () {
+        const nftId = 876745463;
         const qty = 1;
         const guy = buyer.address;
         const tx = await ticket.connect(buyer).mint(tokenId, nftId, qty, guy, { value: nftPrice });
         const receipt = await tx.wait();
         const mintEvent = receipt.events.find((event) => event.event === 'Mint');
         expect(mintEvent).to.exist;
-        expect(await ticket.balanceOf(buyer.address, nftId)).to.equal(1);
 
-        await ticket_registry
-          .connect(owner)
-          .updateOwnershipOnMint(
-            mintEvent.args.guy,
-            mintEvent.args.tokenId,
-            mintEvent.args.nftId,
-            mintEvent.args.qty,
-            mintEvent.args.price,
-            mintEvent.args.uri,
-          );
+        expect(await ticket_registry.doesUserOwnNFT(buyer.address, tokenId)).to.be.true;
 
-        // Verify buyer owns the NFT
-        expect(await ticket.balanceOf(buyer.address, nftId)).to.equal(1);
-        expect(await ticket_registry.doesUserOwnNFT(buyer.address, nftId)).to.be.true;
+        // await ticket_registry
+        //   .connect(owner)
+        //   .updateOwnershipOnMint(
+        //     mintEvent.args.guy,
+        //     mintEvent.args.tokenId,
+        //     mintEvent.args.nftId,
+        //     mintEvent.args.qty,
+        //     mintEvent.args.price,
+        //     mintEvent.args.uri,
+        //   );
+      });
+
+      it("should verify buyer doesn't have access after transfer", async function () {
+        const nftId = 456465467;
+        const qty = 1;
+        const guy = buyer.address;
+        const tx = await ticket.connect(buyer).mint(tokenId, nftId, qty, guy, { value: nftPrice });
+        const receipt = await tx.wait();
+        const mintEvent = receipt.events.find((event) => event.event === 'Mint');
+        expect(mintEvent).to.exist;
+        expect(await ticket_registry.doesUserOwnNFT(buyer.address, tokenId)).to.be.true;
+
+        // await ticket_registry
+        //   .connect(owner)
+        //   .updateOwnershipOnMint(
+        //     mintEvent.args.guy,
+        //     mintEvent.args.tokenId,
+        //     mintEvent.args.nftId,
+        //     mintEvent.args.qty,
+        //     mintEvent.args.price,
+        //     mintEvent.args.uri,
+        //   );
+
+        // Get the owned NFT ID for that TokenID by the User
+        const ownedNFTId = await ticket_registry.getFirstOwnedNftIdForTokenId(
+          buyer.address,
+          tokenId,
+        );
 
         // Transfer NFT from buyer to buyer2
         const tx_transfer = await ticket
           .connect(buyer)
-          .safeTransferFrom(buyer.address, buyer2.address, nftId, qty, '0x');
-
+          .safeTransferFrom(buyer.address, buyer2.address, ownedNFTId.toNumber(), qty, '0x');
         const receipt_transfer = await tx_transfer.wait();
         const transferEvent = receipt_transfer.events.find((event) => event.event === 'Transfer');
         expect(transferEvent).to.exist;
 
-        // Update ownership in the registry
-        await ticket_registry.connect(owner).updateOwnershipOnTransfer(
-          buyer.address, // from
-          buyer2.address, // to
-          transferEvent.args.tokenId.toNumber(), // tokenId
-          transferEvent.args.nftId.toNumber(), // nftId
-          transferEvent.args.qty.toNumber(), // qty
-          nftPrice, // price
-          transferEvent.args.uri, // uri
-        );
+        // // Update ownership in the registry
+        // await ticket_registry.connect(owner).updateOwnershipOnTransfer(
+        //   buyer.address, // from
+        //   buyer2.address, // to
+        //   transferEvent.args.tokenId.toNumber(), // tokenId
+        //   transferEvent.args.nftId.toNumber(), // nftId
+        //   transferEvent.args.qty.toNumber(), // qty
+        //   nftPrice, // price
+        //   transferEvent.args.uri, // uri
+        // );
 
         // Verify that buyer no longer owns the NFT
-        expect(await ticket_registry.doesUserOwnNFT(buyer.address, nftId)).to.be.false;
+        expect(await ticket_registry.doesUserOwnNFT(buyer.address, tokenId)).to.be.false;
 
         // Verify that buyer2 now owns the NFT
-        expect(await ticket_registry.doesUserOwnNFT(buyer2.address, nftId)).to.be.true;
+        expect(await ticket_registry.doesUserOwnNFT(buyer2.address, tokenId)).to.be.true;
       });
 
-      it('should check max supply', async function () {
-        expect(await ticket.stock(tokenId)).to.equal(initialStock);
+      it('should not allow specialUpdateOnMint being called from seller or elsewhere', async function () {
+        const nftId = 456465467;
+        const qty = 1;
+        const guy = buyer.address;
+        const _uri = `https://api.boomslag.com/api/courses/nft/${nftId}`;
+
+        let transactionFailed = false;
+
+        try {
+          // Attempt to call specialUpdateOnMint directly, which should fail
+          await ticket_registry
+            .connect(seller)
+            .specialUpdateOnMint(guy, tokenId, nftId, qty, nftPrice, _uri);
+        } catch (error) {
+          // Check if the error is the expected revert
+          transactionFailed = error.message.includes('Can only be called during minting');
+        }
+
+        // Assert that the transaction failed with the expected revert message
+        expect(transactionFailed).to.be.true;
       });
+
+      it('should not allow specialUpdateOnTransfer being called from seller or elsewhere', async function () {
+        const nftId = 5344356364;
+        const qty = 1;
+        const guy = buyer.address;
+        const guy2 = buyer2.address;
+        const _uri = `https://api.boomslag.com/api/courses/nft/${nftId}`;
+
+        const tx = await ticket.connect(buyer).mint(tokenId, nftId, qty, guy, { value: nftPrice });
+        const receipt = await tx.wait();
+        const mintEvent = receipt.events.find((event) => event.event === 'Mint');
+        expect(mintEvent).to.exist;
+        expect(await ticket_registry.doesUserOwnNFT(buyer.address, tokenId)).to.be.true;
+
+        // Buyer has purchased the nft now the seller will try to call specialUpdateOnTransfer
+        try {
+          await ticket_registry
+            .connect(seller)
+            .specialUpdateOnTransfer(guy, guy2, tokenId, nftId, qty, nftPrice, _uri);
+        } catch (error) {
+          // Check if the error is the expected revert
+          transactionFailed = error.message.includes('Unauthorized caller');
+        }
+      });
+
+      // It should not allow mint of a tokenId that doesnt exist
+      it('should not allow mint of a tokenId that doesnt exist', async function () {
+        await expect(mintNft(531, 12345, 1, buyer.address)).to.be.revertedWith('NFT Out of Stock');
+      });
+
+      // // It should not allow minting of duplicate nftIds
+      // it('should not allow minting of duplicate nftIds', async function () {
+      //   await mintNft(tokenId, 12345, 1, buyer.address);
+      //   // const [ownedNFTs, totalNFTs] = await ticket_registry.getOwnedNFTs(
+      //   //   buyer.address,
+      //   //   tokenId,
+      //   //   1,
+      //   //   10,
+      //   // );
+      //   // console.log('Owned NFTs: ', ownedNFTs);
+      //   // console.log('totalNFTs: ', totalNFTs);
+
+      //   // await mintNft(tokenId, 12345, 1, buyer2.address);
+      //   // const [ownedNFTs2, totalNFTs2] = await ticket_registry.getOwnedNFTs(
+      //   //   buyer2.address,
+      //   //   tokenId,
+      //   //   1,
+      //   //   10,
+      //   // );
+      //   // console.log('Owned NFTs2: ', ownedNFTs2);
+      //   // console.log('totalNFTs2: ', totalNFTs2);
+      // });
     });
 
     describe('Ticket Contract Royalties', function () {
@@ -343,8 +431,9 @@ if (testTicket) {
       });
 
       it('should check royalty receiver', async function () {
-        const [receiver] = await ticket.royaltyInfo(tokenId, nftPrice);
+        const [receiver, royaltyAmount] = await ticket.royaltyInfo(tokenId, nftPrice);
         expect(receiver).to.equal(royaltyReceiver.address);
+        // console.log(royaltyAmount);
       });
 
       it('should check royalty percentage', async function () {
@@ -391,997 +480,6 @@ if (testTicket) {
   });
 }
 
-const testAffiliates = false;
-if (testAffiliates) {
-  describe('Affiliates Contract', function () {
-    describe('Deployment and Initial Settings', function () {
-      it('should deploy the Affiliates contract', async function () {
-        expect(affiliates.address).to.not.equal(0x0);
-        expect(affiliates.address).to.not.equal(null);
-        expect(affiliates.address).to.not.equal(undefined);
-        expect(affiliates.address).to.not.equal('');
-      });
-
-      it('should have correct initial referral reward basis points', async function () {
-        for (let i = 0; i < referralRewardBasisPointsArray.length; i++) {
-          for (let j = 0; j < referralRewardBasisPointsArray[i].length; j++) {
-            const deployedReferralReward = await affiliates.referralRewardBasisPoints(i, j);
-            expect(deployedReferralReward).to.equal(referralRewardBasisPointsArray[i][j]);
-          }
-        }
-      });
-
-      it('should have correct initial rank criterias', async function () {
-        for (let i = 0; i < rankCriteriasArray.length; i++) {
-          const deployedRankCriteria = await affiliates.rankCriterias(i);
-          expect(deployedRankCriteria.requiredDirectReferrals).to.equal(
-            rankCriteriasArray[i].requiredDirectReferrals,
-          );
-          expect(deployedRankCriteria.requiredSalesVolume).to.equal(
-            rankCriteriasArray[i].requiredSalesVolume,
-          );
-        }
-      });
-
-      it('should have correct initial max referral depth', async function () {
-        const deployedMaxReferralDepth = await affiliates.maxDepth();
-        expect(deployedMaxReferralDepth).to.equal(maxReferralDepth);
-      });
-    });
-
-    describe('Functional Tests', function () {
-      it('should correctly set and update referral rewards', async function () {
-        // const BOOTH_ROLE = await affiliates.BOOTH_ROLE();
-        // await affiliates.grantRole(BOOTH_ROLE, owner.address);
-
-        // Update referral rewards
-        const newRewardBasisPoints = 1500; // Example new reward basis points (15%)
-        const levelToUpdate = 1; // Example level to update
-        const rankToUpdate = 1; // Example rank to update
-
-        // Update the reward for a specific level and rank
-        await affiliates
-          .connect(owner)
-          .setReferralReward(levelToUpdate, rankToUpdate, newRewardBasisPoints);
-
-        // Check that the reward was updated
-        const updatedReward = await affiliates.referralRewardBasisPoints(
-          levelToUpdate,
-          rankToUpdate,
-        );
-        expect(updatedReward).to.equal(newRewardBasisPoints);
-      });
-
-      it('should correctly assign and manage referrer ranks', async function () {
-        // Assign a rank to a referrer
-        const initialRank = 1; // Example initial rank
-        await affiliates.setReferrerRank(affiliate.address, initialRank);
-
-        // Check the assigned rank
-        let currentRank = await affiliates.getReferrerRank(affiliate.address);
-        expect(currentRank).to.equal(initialRank);
-      });
-
-      it('should update sales volume correctly', async function () {
-        // Set a referrer for a buyer
-        const buyerReferrer = affiliate.address; // Example referrer address
-        await affiliates.setReferrer(buyer.address, buyerReferrer);
-
-        // Simulate a sale and update the sales volume
-        const saleAmount = ethers.utils.parseEther('1'); // Example sale amount
-        await affiliates.connect(owner).updateSalesVolume(buyerReferrer, saleAmount);
-
-        // Check the updated sales volume
-        const updatedSalesVolume = await affiliates.salesVolume(buyerReferrer);
-        expect(updatedSalesVolume).to.equal(saleAmount);
-
-        // Optionally, simulate additional sales and check cumulative sales volume
-        const additionalSaleAmount = ethers.utils.parseEther('2'); // Example additional sale amount
-        await affiliates.connect(owner).updateSalesVolume(buyerReferrer, additionalSaleAmount);
-
-        const totalSalesVolume = await affiliates.salesVolume(buyerReferrer);
-        expect(totalSalesVolume).to.equal(saleAmount.add(additionalSaleAmount));
-      });
-
-      it('should handle rank up based on criteria', async function () {
-        // Set a referrer for a buyer
-        const referrer = affiliate.address; // Example referrer address
-        await affiliates.setReferrer(buyer.address, referrer);
-
-        // Assign initial rank to the referrer
-        const initialRank = 0; // Assuming rank starts from 0
-        await affiliates.setReferrerRank(referrer, initialRank);
-
-        // Simulate referrals and sales to meet the criteria for rank up
-        const requiredReferrals = rankCriteriasArray[initialRank + 1].requiredDirectReferrals;
-        const requiredSalesVolume = rankCriteriasArray[initialRank + 1].requiredSalesVolume;
-        for (let i = 0; i < requiredReferrals; i++) {
-          const newBuyer = ethers.Wallet.createRandom().address; // Create a dummy buyer address
-          await affiliates.setReferrer(newBuyer, referrer); // Set referrer for the new buyer
-        }
-        await affiliates.connect(owner).updateSalesVolume(referrer, requiredSalesVolume);
-
-        // Perform a rank up
-        await affiliates.rankUp(referrer);
-
-        // Check the updated rank
-        const updatedRank = await affiliates.getReferrerRank(referrer);
-        expect(updatedRank).to.equal(initialRank + 1);
-      });
-
-      it('should correctly handle affiliate program commissions', async function () {
-        // Set up the referral structure
-        // affiliate -> affiliate2 -> affiliate3 -> affiliate4 -> affiliate5
-        await affiliates.setReferrer(affiliate2.address, affiliate.address);
-        await affiliates.setReferrer(affiliate3.address, affiliate2.address);
-        await affiliates.setReferrer(affiliate4.address, affiliate3.address);
-        await affiliates.setReferrer(affiliate5.address, affiliate4.address);
-
-        // Set up the referrer ranks
-        await affiliates.setReferrerRank(affiliate.address, 0);
-        await affiliates.setReferrerRank(affiliate2.address, 1);
-        await affiliates.setReferrerRank(affiliate3.address, 2);
-        await affiliates.setReferrerRank(affiliate4.address, 3);
-        await affiliates.setReferrerRank(affiliate5.address, 4);
-
-        // Affiliate 5 Was referred by Affiliate 4 and he makes a purchase
-        const purchasePrice = ethers.utils.parseEther('0.01');
-        const nftId = 1;
-        const qty = 1;
-        const guy = affiliate5.address;
-
-        const initialBalances = [
-          await ethers.provider.getBalance(affiliate.address),
-          await ethers.provider.getBalance(affiliate2.address),
-          await ethers.provider.getBalance(affiliate3.address),
-          await ethers.provider.getBalance(affiliate4.address),
-          await ethers.provider.getBalance(affiliate5.address),
-        ];
-        // console.log('Initial Balances: ', initialBalances)
-        // Purchase the NFT from the booth
-        await booth.grantRole(await booth.BUYER_ROLE(), affiliate5.address);
-        await booth
-          .connect(affiliate5)
-          .affiliateBuy(tokenId, nftId, qty, guy, { value: purchasePrice });
-
-        const finalBalances = [
-          await ethers.provider.getBalance(affiliate.address),
-          await ethers.provider.getBalance(affiliate2.address),
-          await ethers.provider.getBalance(affiliate3.address),
-          await ethers.provider.getBalance(affiliate4.address),
-          await ethers.provider.getBalance(affiliate5.address),
-        ];
-        // console.log('Final Balances: ', finalBalances)
-        expect(finalBalances[0]).to.be.above(initialBalances[0]);
-        expect(finalBalances[1]).to.be.above(initialBalances[1]);
-        expect(finalBalances[2]).to.be.above(initialBalances[2]);
-        expect(finalBalances[3]).to.be.above(initialBalances[3]);
-        // expect(finalBalances[4]).to.be.equal(initialBalances[4]);
-      });
-
-      it('should correctly set and retrieve referrers', async function () {
-        // Set up referrer relationships
-        await affiliates.setReferrer(buyer.address, affiliate.address);
-        await affiliates.setReferrer(affiliate.address, affiliate2.address);
-        await affiliates.setReferrer(affiliate2.address, affiliate3.address);
-
-        // Retrieve and check referrers
-        const referrerOfBuyer = await affiliates.getReferrer(buyer.address);
-        expect(referrerOfBuyer).to.equal(affiliate.address);
-
-        const referrerOfAffiliate = await affiliates.getReferrer(affiliate.address);
-        expect(referrerOfAffiliate).to.equal(affiliate2.address);
-
-        const referrerOfAffiliate2 = await affiliates.getReferrer(affiliate2.address);
-        expect(referrerOfAffiliate2).to.equal(affiliate3.address);
-      });
-
-      it('should correctly calculate and distribute rewards', async function () {
-        // Set up the referral chain
-        // affiliate -> affiliate2 -> affiliate3 -> affiliate4 -> affiliate5
-        // Affiliate 1 refers affiliate 2
-        await affiliates.setReferrer(affiliate2.address, affiliate.address);
-        // Affiliate 2 refers affiliate 3
-        await affiliates.setReferrer(affiliate3.address, affiliate2.address);
-
-        // Store initial balances of the affiliates
-        const initialBalanceAffiliate1 = await ethers.provider.getBalance(affiliate.address);
-        const initialBalanceAffiliate2 = await ethers.provider.getBalance(affiliate2.address);
-
-        // Simulate a purchase that should trigger rewards
-        // Make sure the buyer has the BUYER_ROLE and enough funds
-        await booth.grantRole(await booth.BUYER_ROLE(), affiliate3.address);
-        // affiliate 3 will make a purchase
-        await booth
-          .connect(affiliate3)
-          .affiliateBuy(tokenId, 1, 1, affiliate3.address, { value: nftPrice.mul(1) });
-
-        // // Helper function to calculate expected rewards
-        // function calculateExpectedReward(rank, purchaseAmount, level) {
-        //     const rewardBasisPoints = referralRewardBasisPointsArray[level][rank];
-        //     return purchaseAmount.mul(rewardBasisPoints).div(10000);
-        // }
-
-        // // Calculate expected rewards for each affiliate
-        // const affiliate1Rank = await affiliates.getReferrerRank(affiliate.address);
-        // const affiliate2Rank = await affiliates.getReferrerRank(affiliate2.address);
-
-        // const affiliate1Reward = calculateExpectedReward(affiliate1Rank, purchaseAmount, 0); // Assuming affiliate1 is at level 0 in the referral chain
-        // const affiliate2Reward = calculateExpectedReward(affiliate2Rank, purchaseAmount, 1); // Assuming affiliate2 is at level 1 in the referral chain
-
-        const finalBalanceAffiliate1 = await ethers.provider.getBalance(affiliate.address);
-        const finalBalanceAffiliate2 = await ethers.provider.getBalance(affiliate2.address);
-
-        expect(finalBalanceAffiliate1).to.be.above(initialBalanceAffiliate1);
-        expect(finalBalanceAffiliate2).to.be.above(initialBalanceAffiliate2);
-      });
-
-      it('should manage direct referrals correctly', async function () {
-        // Initially, affiliates should have no direct referrals
-        expect(await affiliates.directReferrals(affiliate.address)).to.equal(0);
-        expect(await affiliates.directReferrals(affiliate2.address)).to.equal(0);
-
-        // Add direct referrals
-        await affiliates.setReferrer(buyer.address, affiliate.address);
-        await affiliates.setReferrer(buyer2.address, affiliate.address);
-        await affiliates.setReferrer(seller.address, affiliate2.address);
-
-        // Check updated direct referral counts
-        expect(await affiliates.directReferrals(affiliate.address)).to.equal(2); // buyer and buyer2 referred by affiliate
-        expect(await affiliates.directReferrals(affiliate2.address)).to.equal(1); // seller referred by affiliate2
-
-        // Adding more referrals
-        const anotherBuyer = (await ethers.getSigners())[8]; // Example of getting another signer
-        await affiliates.setReferrer(anotherBuyer.address, affiliate.address);
-
-        // Check updated direct referral counts again
-        expect(await affiliates.directReferrals(affiliate.address)).to.equal(3); // now affiliate has 3 direct referrals
-      });
-
-      it('should correctly check eligibility for rank up', async function () {
-        // Set initial sales volume and direct referrals for an affiliate
-        const initialSalesVolume = ethers.utils.parseEther('1'); // Example sales volume
-        await affiliates.updateSalesVolume(affiliate.address, initialSalesVolume);
-        // Simulate a few direct referrals
-        await affiliates.setReferrer(buyer.address, affiliate.address);
-        await affiliates.setReferrer(buyer2.address, affiliate.address);
-
-        // Check initial rank of the affiliate
-        const initialRank = await affiliates.getReferrerRank(affiliate.address);
-        expect(initialRank).to.equal(0); // Assuming rank starts from 0
-
-        // Check eligibility for rank up before meeting criteria
-        let isEligibleBefore = await affiliates.checkEligibilityForRankUp(affiliate.address);
-        expect(isEligibleBefore).to.equal(false); // Not eligible yet
-
-        // Update sales volume and direct referrals to meet rank up criteria
-        const rankCriteria = await affiliates.rankCriterias(1); // Assuming next rank is 1
-        await affiliates.updateSalesVolume(affiliate.address, rankCriteria.requiredSalesVolume);
-        for (let i = 0; i < rankCriteria.requiredDirectReferrals; i++) {
-          const newBuyer = (await ethers.getSigners())[10 + i]; // Example of getting new signers
-          await affiliates.setReferrer(newBuyer.address, affiliate.address);
-        }
-
-        // Check eligibility for rank up after meeting criteria
-        let isEligibleAfter = await affiliates.checkEligibilityForRankUp(affiliate.address);
-        expect(isEligibleAfter).to.equal(true); // Should be eligible now
-
-        // Perform the rank up
-        await affiliates.rankUp(affiliate.address);
-
-        // Verify that the rank has been updated
-        const newRank = await affiliates.getReferrerRank(affiliate.address);
-        expect(newRank).to.equal(initialRank + 1);
-      });
-
-      it('should correctly calculate referral depth', async function () {
-        // Set up the referral structure
-        // affiliate -> affiliate2 -> affiliate3 -> affiliate4 -> affiliate5
-        await affiliates.setReferrer(affiliate2.address, affiliate.address);
-        await affiliates.setReferrer(affiliate3.address, affiliate2.address);
-        await affiliates.setReferrer(affiliate4.address, affiliate3.address);
-        await affiliates.setReferrer(affiliate5.address, affiliate4.address);
-
-        // Check referral depth for each affiliate
-        let depthAffiliate = await affiliates.getReferralDepth(affiliate.address);
-        let depthAffiliate2 = await affiliates.getReferralDepth(affiliate2.address);
-        let depthAffiliate3 = await affiliates.getReferralDepth(affiliate3.address);
-        let depthAffiliate4 = await affiliates.getReferralDepth(affiliate4.address);
-
-        expect(depthAffiliate).to.equal(0);
-        expect(depthAffiliate2).to.equal(1);
-        expect(depthAffiliate3).to.equal(2);
-        expect(depthAffiliate4).to.equal(3);
-      });
-
-      it('should correctly retrieve referrer and rank information', async function () {
-        // Set up referrers and ranks
-        await affiliates.setReferrer(buyer.address, affiliate.address);
-        await affiliates.setReferrer(affiliate.address, affiliate2.address);
-
-        // Set ranks for the affiliates
-        const rankAffiliate = 1; // Example rank
-        const rankAffiliate2 = 2; // Example rank
-        await affiliates.setReferrerRank(affiliate.address, rankAffiliate);
-        await affiliates.setReferrerRank(affiliate2.address, rankAffiliate2);
-
-        // Retrieve referrer information
-        const referrerOfBuyer = await affiliates.getReferrer(buyer.address);
-        const referrerOfAffiliate = await affiliates.getReferrer(affiliate.address);
-
-        // Retrieve rank information
-        const rankOfAffiliate = await affiliates.getReferrerRank(affiliate.address);
-        const rankOfAffiliate2 = await affiliates.getReferrerRank(affiliate2.address);
-
-        // Verify referrer information
-        expect(referrerOfBuyer).to.equal(affiliate.address);
-        expect(referrerOfAffiliate).to.equal(affiliate2.address);
-
-        // Verify rank information
-        expect(rankOfAffiliate).to.equal(rankAffiliate);
-        expect(rankOfAffiliate2).to.equal(rankAffiliate2);
-      });
-
-      it('should correctly calculate referral rewards in a complete hierarchy', async function () {
-        // Set up the referral structure
-        // affiliate -> affiliate2 -> affiliate3 -> affiliate4 -> affiliate5
-        await affiliates.setReferrer(affiliate2.address, affiliate.address);
-        await affiliates.setReferrer(affiliate3.address, affiliate2.address);
-        await affiliates.setReferrer(affiliate4.address, affiliate3.address);
-        await affiliates.setReferrer(affiliate5.address, affiliate4.address);
-
-        // Set up the referrer ranks
-        await affiliates.setReferrerRank(affiliate.address, 0);
-        await affiliates.setReferrerRank(affiliate2.address, 1);
-        await affiliates.setReferrerRank(affiliate3.address, 2);
-        await affiliates.setReferrerRank(affiliate4.address, 3);
-        await affiliates.setReferrerRank(affiliate5.address, 4);
-
-        const affiliateDepth = await affiliates.getReferralDepth(affiliate.address);
-        const affiliate2Depth = await affiliates.getReferralDepth(affiliate2.address);
-        const affiliate3Depth = await affiliates.getReferralDepth(affiliate3.address);
-        const affiliate4Depth = await affiliates.getReferralDepth(affiliate4.address);
-        const affiliate5Depth = await affiliates.getReferralDepth(affiliate5.address);
-
-        const reward = await affiliates.calculateReward(affiliate.address, affiliateDepth);
-        const reward2 = await affiliates.calculateReward(affiliate2.address, affiliate2Depth);
-        const reward3 = await affiliates.calculateReward(affiliate3.address, affiliate3Depth);
-        const reward4 = await affiliates.calculateReward(affiliate4.address, affiliate4Depth);
-        const reward5 = await affiliates.calculateReward(affiliate5.address, affiliate5Depth);
-
-        let rewards = [reward, reward2, reward3, reward4, reward5];
-
-        // // console.log(rewards)
-        expect(rewards[0].toString()).to.equal('100');
-        expect(rewards[1].toString()).to.equal('70');
-        expect(rewards[2].toString()).to.equal('50');
-        expect(rewards[3].toString()).to.equal('30');
-        expect(rewards[4].toString()).to.equal('15');
-      });
-
-      it('should start a new hierarchy for affiliate6', async function () {
-        // Set up the original referral structure
-        // affiliate -> affiliate2 -> affiliate3 -> affiliate4 -> affiliate5
-        await affiliates.setReferrer(affiliate2.address, affiliate.address);
-        await affiliates.setReferrer(affiliate3.address, affiliate2.address);
-        await affiliates.setReferrer(affiliate4.address, affiliate3.address);
-        await affiliates.setReferrer(affiliate5.address, affiliate4.address);
-
-        // Now, introduce affiliate6 into the system as the new circle head.
-        // Let's say affiliate6 was introduced to the system by affiliate but he's starting his new circle.
-        await affiliates.setReferrer(affiliate6.address, affiliate.address);
-
-        // Now, affiliate6 refers affiliate7, affiliate8, and so on...
-        await affiliates.setReferrer(affiliate7.address, affiliate6.address);
-
-        // Checking affiliate6's referrer
-        const affiliate6Referrer = await affiliates.getReferrer(affiliate6.address);
-        assert.equal(affiliate6Referrer, affiliate.address, 'Referrer for User 6 is incorrect');
-
-        // Checking affiliate7's referrer
-        const affiliate7Referrer = await affiliates.getReferrer(affiliate7.address);
-        assert.equal(affiliate7Referrer, affiliate6.address, 'Referrer for User 7 is incorrect');
-
-        const depth = await affiliates.getReferralDepth(affiliate7.address);
-        assert.equal(depth.toString(), '2', 'Referral depth for affiliate5 is incorrect');
-
-        // ... Continue this pattern for affiliate8, affiliate9, and so on until you've validated the circle hierarchy for affiliate6.
-        // Add more affiliates to affiliate6's circle
-
-        await affiliates.setReferrer(affiliate8.address, affiliate6.address);
-        await affiliates.setReferrer(affiliate9.address, affiliate8.address);
-
-        // Check the referrer for affiliate8 and affiliate9
-        const affiliate8Referrer = await affiliates.getReferrer(affiliate8.address);
-        assert.equal(affiliate8Referrer, affiliate6.address, 'Referrer for User 8 is incorrect');
-
-        const affiliate9Referrer = await affiliates.getReferrer(affiliate9.address);
-        assert.equal(affiliate9Referrer, affiliate8.address, 'Referrer for User 9 is incorrect');
-
-        // Optionally, you can also verify if affiliate6's circle is independent of the previous circle by ensuring that rewards don't propagate outside the circle.
-        const affiliateDepth = await affiliates.getReferralDepth(affiliate.address);
-        const affiliate2Depth = await affiliates.getReferralDepth(affiliate2.address);
-        const affiliate3Depth = await affiliates.getReferralDepth(affiliate3.address);
-        const affiliate4Depth = await affiliates.getReferralDepth(affiliate4.address);
-        const affiliate5Depth = await affiliates.getReferralDepth(affiliate5.address);
-
-        const reward = await affiliates.calculateReward(affiliate.address, affiliateDepth);
-        const reward2 = await affiliates.calculateReward(affiliate2.address, affiliate2Depth);
-        const reward3 = await affiliates.calculateReward(affiliate3.address, affiliate3Depth);
-        const reward4 = await affiliates.calculateReward(affiliate4.address, affiliate4Depth);
-        const reward5 = await affiliates.calculateReward(affiliate5.address, affiliate5Depth);
-
-        let rewards = [reward, reward2, reward3, reward4, reward5];
-
-        // Calculate rewards for the new hierarchy
-        const depthAffiliate6 = await affiliates.getReferralDepth(affiliate6.address);
-        const depthAffiliate7 = await affiliates.getReferralDepth(affiliate7.address);
-        // Verify the depth for affiliate8 and affiliate9
-        const depthAffiliate8 = await affiliates.getReferralDepth(affiliate8.address);
-        assert.equal(depthAffiliate8.toString(), '2', 'Referral depth for affiliate8 is incorrect');
-        const depthAffiliate9 = await affiliates.getReferralDepth(affiliate9.address);
-        assert.equal(depthAffiliate9.toString(), '3', 'Referral depth for affiliate9 is incorrect');
-
-        const reward6 = await affiliates.calculateReward(affiliate6.address, depthAffiliate6);
-        const reward7 = await affiliates.calculateReward(affiliate7.address, depthAffiliate7);
-        const reward8 = await affiliates.calculateReward(affiliate8.address, depthAffiliate8);
-        const reward9 = await affiliates.calculateReward(affiliate9.address, depthAffiliate9);
-
-        let rewardsHierarchy2 = [reward6, reward7, reward8, reward9];
-
-        // Assert the calculated rewards against expected values for Hierarchy 1
-        expect(rewards[0].toString()).to.equal('100');
-        expect(rewards[1].toString()).to.equal('70');
-        expect(rewards[2].toString()).to.equal('50');
-        expect(rewards[3].toString()).to.equal('30');
-        expect(rewards[4].toString()).to.equal('15');
-
-        // Assert the calculated rewards against expected values for Hierarchy 2
-        expect(rewardsHierarchy2[0].toString()).to.equal('70'); // Expected value for affiliate6 in the new hierarchy
-        expect(rewardsHierarchy2[1].toString()).to.equal('50'); // Expected value for affiliate7 in the new hierarchy
-        expect(rewardsHierarchy2[2].toString()).to.equal('50'); // Expected value for affiliate8 in the new hierarchy
-        expect(rewardsHierarchy2[3].toString()).to.equal('30'); // Expected value for affiliate9 in the new hierarchy
-      });
-    });
-
-    describe('Edge Cases', function () {
-      it('should avoid setting invalid commission percentages', async function () {
-        await expect(
-          booth.setCommissionPercent(11000), // 110% in basis points
-        ).to.be.revertedWith('Invalid commission percentage');
-      });
-
-      it("should avoid joining program for object that doesn't exist", async function () {
-        await expect(
-          booth.connect(affiliate).joinAffiliateProgram(999, owner.address),
-        ).to.be.revertedWith('Invalid object');
-      });
-
-      it('should avoid joining the affiliate program twice for the same object', async function () {
-        await booth.connect(affiliate).joinAffiliateProgram(tokenId, owner.address);
-        await expect(
-          booth.connect(affiliate).joinAffiliateProgram(tokenId, owner.address),
-        ).to.be.revertedWith('Already an affiliate for this NFT');
-      });
-    });
-
-    describe('Access Control Tests', function () {
-      let nonBoothAccount;
-      let nonAffiliateAccount;
-
-      beforeEach(async function () {
-        [, nonBoothAccount, nonAffiliateAccount] = await ethers.getSigners();
-      });
-
-      it('should restrict access to BOOTH_ROLE functions', async function () {
-        const levelToUpdate = 1;
-        const rankToUpdate = 1;
-        const newRewardBasisPoints = 1500;
-        const BOOTH_ROLE = await affiliates.BOOTH_ROLE();
-
-        await expect(
-          affiliates
-            .connect(nonBoothAccount)
-            .setReferralReward(levelToUpdate, rankToUpdate, newRewardBasisPoints),
-        ).to.be.revertedWith(
-          'AccessControl: account ' +
-            nonBoothAccount.address.toLowerCase() +
-            ' is missing role ' +
-            BOOTH_ROLE.toLowerCase(),
-        );
-      });
-
-      it('should restrict access to AFFILIATE_ROLE functions', async function () {
-        const referrer = nonAffiliateAccount.address;
-        const referred = (await ethers.getSigners())[4].address;
-        const AFFILIATE_ROLE = await affiliates.AFFILIATE_ROLE();
-
-        await expect(
-          affiliates.connect(nonAffiliateAccount).setReferrer(referred, referrer),
-        ).to.be.revertedWith('Caller is not a booth or an affiliate'); // Update this line to match the actual error thrown by your contract
-      });
-    });
-
-    describe('Event Emission Tests', function () {
-      // Assuming necessary roles and permissions are already set in the beforeEach block
-
-      it('should emit ReferralRewardUpdated event correctly', async function () {
-        const level = 0;
-        const rank = 0;
-        const newRewardBasisPoints = 1500; // New reward basis points
-
-        await expect(affiliates.connect(owner).setReferralReward(level, rank, newRewardBasisPoints))
-          .to.emit(affiliates, 'ReferralRewardUpdated')
-          .withArgs(level, rank, newRewardBasisPoints);
-      });
-
-      it('should emit RankUp event correctly', async function () {
-        // Set initial sales volume and direct referrals for an affiliate
-        const initialSalesVolume = ethers.utils.parseEther('1'); // Example sales volume
-        await affiliates.updateSalesVolume(affiliate.address, initialSalesVolume);
-        // Simulate a few direct referrals
-        await affiliates.setReferrer(buyer.address, affiliate.address);
-        await affiliates.setReferrer(buyer2.address, affiliate.address);
-
-        // Check initial rank of the affiliate
-        const initialRank = await affiliates.getReferrerRank(affiliate.address);
-        expect(initialRank).to.equal(0); // Assuming rank starts from 0
-
-        // Update sales volume and direct referrals to meet rank up criteria
-        const rankCriteria = await affiliates.rankCriterias(1); // Assuming next rank is 1
-        await affiliates.updateSalesVolume(affiliate.address, rankCriteria.requiredSalesVolume);
-        for (let i = 0; i < rankCriteria.requiredDirectReferrals; i++) {
-          const newBuyer = (await ethers.getSigners())[10 + i]; // Example of getting new signers
-          await affiliates.setReferrer(newBuyer.address, affiliate.address);
-        }
-
-        // Perform the rank up and expect the RankUp event to be emitted
-        await expect(affiliates.rankUp(affiliate.address))
-          .to.emit(affiliates, 'RankUp')
-          .withArgs(affiliate.address, initialRank + 1);
-
-        // Verify that the rank has been updated
-        const newRank = await affiliates.getReferrerRank(affiliate.address);
-        expect(newRank).to.equal(initialRank + 1);
-      });
-
-      it('should emit DirectReferralAdded event correctly', async function () {
-        await expect(affiliates.connect(owner).setReferrer(buyer.address, affiliate.address))
-          .to.emit(affiliates, 'DirectReferralAdded')
-          .withArgs(affiliate.address, buyer.address);
-      });
-
-      it('should emit SalesVolumeUpdated event correctly', async function () {
-        const amount = ethers.utils.parseEther('1');
-
-        await expect(affiliates.connect(owner).updateSalesVolume(affiliate.address, amount))
-          .to.emit(affiliates, 'SalesVolumeUpdated')
-          .withArgs(affiliate.address, amount);
-      });
-    });
-  });
-}
-
-const testBooth = false;
-if (testBooth) {
-  describe('Booth Contract', function () {
-    async function buyNFT(id, guy) {
-      // Common setup steps
-      const _nftId = id;
-      const _qty = 1;
-      const _guy = guy;
-      const _value = nftPrice.mul(_qty);
-
-      // Grant BUYER_ROLE and buy the NFT
-      await booth.grantRole(await booth.BUYER_ROLE(), buyer.address);
-      const tx = await booth.connect(buyer).buy(tokenId, _nftId, _qty, _guy, { value: _value });
-      const receipt = await tx.wait();
-      const purchaseMadeEvent = receipt.events.find((event) => event.event === 'PurchaseMade');
-      // console.log(purchaseMadeEvent);
-      await ticket_registry
-        .connect(owner)
-        .updateOwnershipOnMint(
-          purchaseMadeEvent.args.guy,
-          purchaseMadeEvent.args.tokenId,
-          purchaseMadeEvent.args.nftId,
-          purchaseMadeEvent.args.qty,
-          purchaseMadeEvent.args.price,
-          purchaseMadeEvent.args.uri,
-        );
-      return purchaseMadeEvent.args.nftId;
-    }
-
-    describe('Deployment and Initial Settings', function () {
-      it('should deploy the Booth contract', async function () {
-        expect(booth.address).to.not.equal(0x0);
-        expect(booth.address).to.not.equal(null);
-        expect(booth.address).to.not.equal(undefined);
-        expect(booth.address).to.not.equal('');
-      });
-
-      it('should have correct initial commission percent', async function () {
-        // Retrieve the current commission percent from the Booth contract
-        const currentCommissionPercent = await booth.commissionPercent();
-
-        // Assert that the current commission percent is equal to the expected initial value
-        expect(currentCommissionPercent).to.equal(
-          commissionPercent,
-          'Initial commission percent is incorrect',
-        );
-      });
-    });
-
-    describe('Functional Tests', function () {
-      it('should correctly set commission percent', async function () {
-        // Define a new commission percent
-        const newCommissionPercent = 30; // Example: 30%
-        // Set the new commission percent using the Booth contract
-        await booth.connect(owner).setCommissionPercent(newCommissionPercent);
-        // Retrieve the updated commission percent
-        const updatedCommissionPercent = await booth.commissionPercent();
-        // Assert that the updated commission percent matches the new value
-        expect(updatedCommissionPercent).to.equal(
-          newCommissionPercent,
-          'Commission percent was not updated correctly',
-        );
-      });
-
-      it('should register objects and corresponding ticket contracts correctly', async function () {
-        // Define a new object ID and corresponding ticket contract
-        const newObjectId = 456; // Example object ID
-        const newTicketContract = await Ticket.deploy(
-          newObjectId,
-          nftPrice,
-          initialStock,
-          useStock,
-          limitedEdition,
-          royaltyReceiver.address,
-          royaltyPercentage,
-          [owner.address, seller.address],
-          [10, 90],
-          uri,
-        );
-        await newTicketContract.deployed();
-
-        // Register the new object and its ticket contract
-        await booth.connect(owner).registerObject(newObjectId, newTicketContract.address);
-
-        // Retrieve the ticket contract registered for the new object ID
-        const registeredTicketContract = await booth.objectToTicket(newObjectId);
-
-        // Assert that the registered ticket contract matches the new ticket contract
-        expect(registeredTicketContract).to.equal(
-          newTicketContract.address,
-          'Object was not registered correctly with its ticket contract',
-        );
-      });
-
-      it('should correctly authorize buyers', async function () {
-        // Select a buyer to authorize (e.g., buyer2)
-        const buyerToAuthorize = buyer2.address;
-        // Authorize the buyer using the Booth contract
-        await booth.connect(owner).authorizeBuyer(buyerToAuthorize);
-        // Check if the buyer has been granted the BUYER_ROLE
-        const isBuyerAuthorized = await booth.hasRole(await booth.BUYER_ROLE(), buyerToAuthorize);
-        // Assert that the buyer is authorized
-        expect(isBuyerAuthorized).to.equal(true, 'Buyer was not authorized correctly');
-      });
-
-      it('should handle affiliate program joins and purchases', async function () {
-        const nftId = 1;
-        const qty = 1;
-
-        // Affiliate 1 becomes affiliate of NFT
-        await booth.connect(affiliate).joinAffiliateProgram(tokenId, owner.address);
-        // Affiliate2 joins affiliate program under Affiliate and buys the NFT
-        // 1) Grant Buyer Role to Affiliate 2
-        await booth.grantRole(await booth.BUYER_ROLE(), affiliate2.address);
-        // 2) call joinAffiliateProgramAndBuy method with affiliate 2
-        await booth
-          .connect(affiliate2)
-          .joinAffiliateProgramAndBuy(tokenId, nftId, qty, affiliate.address, {
-            value: nftPrice.mul(qty),
-          });
-
-        // Check if Affiliate2 is an affiliate for the course
-        // Check if Affiliate2 is added under Affiliate
-
-        // Check if Affiliate2 is an affiliate for the course
-        expect(await booth.verifyAffiliate(tokenId, affiliate2.address)).to.be.true;
-        // Check if Affiliate2 is added under Affiliate
-        expect(await affiliates.referrers(affiliate2.address)).to.equal(affiliate.address);
-      });
-
-      it('should correctly handle affiliate buys', async function () {
-        // Test affiliate buys
-        await affiliates.setReferrer(affiliate2.address, affiliate.address);
-        // Affiliate 2 refers affiliate 3
-        await affiliates.setReferrer(affiliate3.address, affiliate2.address);
-
-        // Store initial balances of the affiliates
-        const initialBalanceAffiliate1 = await ethers.provider.getBalance(affiliate.address);
-        const initialBalanceAffiliate2 = await ethers.provider.getBalance(affiliate2.address);
-
-        // Simulate a purchase that should trigger rewards
-        // Make sure the buyer has the BUYER_ROLE and enough funds
-        await booth.grantRole(await booth.BUYER_ROLE(), affiliate3.address);
-        // affiliate 3 will make a purchase
-        await booth
-          .connect(affiliate3)
-          .affiliateBuy(tokenId, 1, 1, affiliate3.address, { value: nftPrice.mul(1) });
-        const finalBalanceAffiliate1 = await ethers.provider.getBalance(affiliate.address);
-        const finalBalanceAffiliate2 = await ethers.provider.getBalance(affiliate2.address);
-
-        expect(finalBalanceAffiliate1).to.be.above(initialBalanceAffiliate1);
-        expect(finalBalanceAffiliate2).to.be.above(initialBalanceAffiliate2);
-      });
-
-      it('should correctly verify affiliate status', async function () {
-        // Define parameters for the test
-        const objectId = tokenId; // Use the existing tokenId for simplicity
-        const referrer = owner.address; // Use the owner as a referrer for simplicity
-
-        // Affiliate joins the program for the specified object
-        await booth.connect(affiliate).joinAffiliateProgram(objectId, referrer);
-
-        // Verify affiliate status for the object
-        const isAffiliateRegistered = await booth.verifyAffiliate(objectId, affiliate.address);
-
-        // Assert that the affiliate is correctly registered for the object
-        expect(isAffiliateRegistered).to.equal(true, 'Affiliate status not correctly verified');
-      });
-
-      it('should correctly handle NFT purchases', async function () {
-        const guy = buyer.address;
-        const nftId = await buyNFT(1, guy);
-        const nft_blance = await ticket.balanceOf(buyer.address, nftId);
-        expect(nft_blance).to.equal(1);
-        // Test if the BUYER_ROLE has been revoked from the buyer
-        expect(await booth.hasRole(await booth.BUYER_ROLE(), buyer.address)).to.equal(false);
-      });
-
-      it('should correctly handle NFT purchases with discount', async function () {
-        const nftId = 1;
-        const qty = 1;
-        const guy = buyer.address;
-        await booth.grantRole(await booth.BUYER_ROLE(), buyer.address);
-        await booth
-          .connect(buyer)
-          .buy(tokenId, nftId, qty, guy, { value: ethers.utils.parseEther('0.005') });
-      });
-
-      it('should store purchase details accurately', async function () {
-        // Define the parameters for the buy function
-        let _nftId = 1;
-        let _qty = 1;
-        let _guy = buyer.address; // Assuming accounts[1] is the buyer
-        let _value = nftPrice.mul(_qty);
-
-        // Get the initial balance of the buyer
-        const initialBalance = await ethers.provider.getBalance(_guy);
-
-        // Call the buy function
-        await booth.grantRole(await booth.BUYER_ROLE(), buyer.address);
-        await booth.connect(buyer).buy(tokenId, _nftId, _qty, _guy, { value: nftPrice.mul(_qty) });
-
-        // Get the final balance of the buyer
-        const finalBalance = await ethers.provider.getBalance(_guy);
-
-        // Check if the buyer's balance has decreased correctly
-        expect(initialBalance).to.be.above(finalBalance);
-
-        // Retrieve the purchase details
-        let purchase = await booth.ticketBuyers(tokenId, _guy);
-
-        // Check if the purchase details are stored correctly
-        assert.equal(purchase.tokenId, tokenId, 'The tokenId was not stored correctly');
-        assert.equal(purchase.nftId, _nftId, 'The nftId was not stored correctly');
-        assert.equal(purchase.qty, _qty, 'The quantity was not stored correctly');
-        assert.equal(
-          purchase.price.toString(),
-          _value.toString(),
-          'The price was not stored correctly',
-        );
-      });
-
-      it('should handle gift NFTs correctly', async function () {
-        // Test gifting NFTs
-        const nftId = 1;
-        const qty = 1;
-        const guy = affiliate.address;
-
-        await booth.connect(owner).gift(tokenId, nftId, qty, guy, { value: nftPrice.mul(qty) });
-        const nft_blance = await ticket.balanceOf(guy, nftId);
-        expect(nft_blance).to.equal(1);
-      });
-
-      it('should correctly verify ticket access', async function () {
-        // Test verifying ticket access
-        const nftId = 1;
-        const qty = 1;
-        const guy = buyer.address;
-
-        // console.log('Initial Stock',currentStock)
-        await booth.grantRole(await booth.BUYER_ROLE(), buyer.address);
-        await booth.connect(buyer).buy(tokenId, nftId, qty, guy, { value: nftPrice.mul(qty) });
-        // Now, test if the buyer has access to the NFT
-        expect(await ticket.balanceOf(guy, nftId)).to.equal(1);
-        // You can also test if another buyer (who didn't buy the NFT) doesn't have access
-        expect(await ticket.balanceOf(affiliate.address, nftId)).to.equal(0);
-      });
-
-      it('should correctly check object registration status', async function () {
-        // Test checking object registration status
-        expect(await booth.isObjectRegistered(tokenId)).to.equal(true);
-      });
-    });
-
-    describe('Access Control Tests', function () {
-      it('should restrict access to BOOTH_ROLE functions', async function () {
-        // Define a function that requires the BOOTH_ROLE
-
-        const BOOTH_ROLE = await booth.BOOTH_ROLE();
-
-        let functionRequiringBoothRole = async () => {
-          await booth.connect(buyer).registerObject(tokenId, ticket.address);
-        };
-
-        // Expect the function to fail when called by an account without the BOOTH_ROLE
-        await expect(functionRequiringBoothRole()).to.be.revertedWith(
-          'AccessControl: account ' +
-            buyer.address.toLowerCase() +
-            ' is missing role ' +
-            BOOTH_ROLE.toLowerCase(),
-        );
-      });
-
-      it('should restrict access to BUYER_ROLE functions', async function () {
-        const _nftId = 1;
-        const _qty = 1;
-        const _guy = buyer.address;
-
-        let functionRequiringBuyerRole = async () => {
-          await booth
-            .connect(buyer)
-            .buy(tokenId, _nftId, _qty, _guy, { value: nftPrice.mul(_qty) });
-        };
-
-        const BUYER_ROLE = await booth.BUYER_ROLE();
-
-        // Expect the function to fail when called by an account without the BUYER_ROLE
-        await expect(functionRequiringBuyerRole()).to.be.revertedWith(
-          'AccessControl: account ' +
-            buyer.address.toLowerCase() +
-            ' is missing role ' +
-            BUYER_ROLE.toLowerCase(),
-        );
-      });
-    });
-
-    describe('Event Emission Tests', function () {
-      it('should emit CommissionSet event correctly', async function () {
-        // Define a new commission percent
-        const newCommissionPercent = 30; // Example: 30%
-
-        // Set the new commission percent using the Booth contract and expect the CommissionSet event
-        await expect(booth.connect(owner).setCommissionPercent(newCommissionPercent))
-          .to.emit(booth, 'CommissionSet')
-          .withArgs(newCommissionPercent);
-      });
-
-      it('should emit ObjectRegistered event correctly', async function () {
-        // Define a new object ID and corresponding ticket contract
-        const newObjectId = 456; // Example object ID
-        const newTicketContract = await Ticket.deploy(
-          newObjectId,
-          nftPrice,
-          initialStock,
-          useStock,
-          limitedEdition,
-          royaltyReceiver.address,
-          royaltyPercentage,
-          [owner.address, seller.address],
-          [10, 90],
-          uri,
-        );
-        await newTicketContract.deployed();
-
-        // Register the new object and its ticket contract and expect the ObjectRegistered event
-        await expect(booth.connect(owner).registerObject(newObjectId, newTicketContract.address))
-          .to.emit(booth, 'ObjectRegistered')
-          .withArgs(newObjectId, newTicketContract.address);
-      });
-
-      it('should emit BuyerAuthorized event correctly', async function () {
-        // Select a buyer to authorize (e.g., buyer2)
-        const buyerToAuthorize = buyer2.address;
-
-        // Authorize the buyer using the Booth contract and expect the BuyerAuthorized event
-        await expect(booth.connect(owner).authorizeBuyer(buyerToAuthorize))
-          .to.emit(booth, 'BuyerAuthorized')
-          .withArgs(buyerToAuthorize);
-      });
-
-      it('should emit AffiliateJoined event correctly', async function () {
-        // Define a new object ID and corresponding ticket contract
-        const newObjectId = 456; // Example object ID
-        const newTicketContract = await Ticket.deploy(
-          newObjectId,
-          nftPrice,
-          initialStock,
-          useStock,
-          limitedEdition,
-          royaltyReceiver.address,
-          royaltyPercentage,
-          [owner.address, seller.address],
-          [10, 90],
-          uri,
-        );
-        await newTicketContract.deployed();
-
-        // Register the new object and its ticket contract
-        await booth.connect(owner).registerObject(newObjectId, newTicketContract.address);
-
-        // Define a referrer
-        const referrer = affiliate2.address;
-
-        // Join the affiliate program using the Booth contract and expect the AffiliateJoined event
-        await expect(booth.connect(affiliate).joinAffiliateProgram(newObjectId, referrer))
-          .to.emit(booth, 'AffiliateJoined')
-          .withArgs(newObjectId, affiliate.address, referrer);
-      });
-
-      it('should emit PurchaseMade event correctly', async function () {
-        const nftId = 1;
-        const qty = 1;
-        const guy = buyer.address;
-
-        // Grant BUYER_ROLE to the buyer
-        await booth.grantRole(await booth.BUYER_ROLE(), buyer.address);
-
-        // Get the current block for the timestamp
-        const block = await ethers.provider.getBlock('latest');
-        const timestamp = block.timestamp;
-
-        // Buy the NFT and expect the PurchaseMade event
-        const tx = await booth
-          .connect(buyer)
-          .buy(tokenId, nftId, qty, guy, { value: nftPrice.mul(qty) });
-
-        // Get the block of the transaction
-        const txReceipt = await tx.wait();
-        const txBlock = await ethers.provider.getBlock(txReceipt.blockNumber);
-
-        // Check the timestamp difference
-        const timeDifference = Math.abs(txBlock.timestamp - timestamp);
-
-        // Expect the time difference to be less than or equal to 2 seconds
-        assert(timeDifference <= 2, 'Timestamp difference is more than 2 seconds');
-
-        const nftUri = await ticket.uri(nftId);
-        // Expect the PurchaseMade event with the correct arguments
-        await expect(tx)
-          .to.emit(booth, 'PurchaseMade')
-          .withArgs(tokenId, nftId, qty, guy, nftPrice.mul(qty), nftUri, txBlock.timestamp);
-      });
-
-      it('should emit NftGifted event correctly', async function () {
-        // Define a recipient for the NFT gift
-        const recipient = buyer2.address;
-
-        // Define a NFT ID and quantity for the gift
-        const nftId = 1;
-        const qty = 1;
-
-        // Gift the NFT using the Booth contract and expect the NftGifted event
-        await expect(booth.connect(owner).gift(tokenId, nftId, qty, recipient))
-          .to.emit(booth, 'NftGifted')
-          .withArgs(tokenId, nftId, qty, recipient);
-      });
-    });
-  });
-}
-
 const testTicketRegistry = true;
 if (testTicketRegistry) {
   describe('Ticket Registry Contract', function () {
@@ -1393,20 +491,10 @@ if (testTicketRegistry) {
       const _value = nftPrice.mul(_qty);
 
       // Grant BUYER_ROLE and buy the NFT
-      await booth.grantRole(await booth.BUYER_ROLE(), buyer.address);
+      await booth.authorizeBuyer(buyer.address);
       const tx = await ticket.connect(buyer).mint(tokenId, _nftId, _qty, _guy, { value: _value });
       const receipt = await tx.wait();
       const mintEvent = receipt.events.find((event) => event.event === 'Mint');
-      await ticket_registry
-        .connect(owner)
-        .updateOwnershipOnMint(
-          mintEvent.args.guy,
-          mintEvent.args.tokenId,
-          mintEvent.args.nftId,
-          mintEvent.args.qty,
-          mintEvent.args.price,
-          mintEvent.args.uri,
-        );
       return mintEvent.args.nftId;
     }
 
@@ -1435,6 +523,7 @@ if (testTicketRegistry) {
           [owner.address, seller.address],
           [10, 90],
           uri,
+          ticket_registry.address,
         );
         await newTicketContract.deployed();
 
@@ -1483,6 +572,7 @@ if (testTicketRegistry) {
           [owner.address, seller.address],
           [10, 90],
           uri,
+          ticket_registry.address,
         );
         await newTicketContract.deployed();
 
@@ -1521,7 +611,6 @@ if (testTicketRegistry) {
         expect(usesStock).to.equal(useStock);
       });
 
-      // Additional functional tests can be added here
       it('should list user owned nfts', async function () {
         const guy = buyer.address;
         const nftIDs = [123, 321, 231, 213];
@@ -1533,7 +622,7 @@ if (testTicketRegistry) {
           expect(await ticket.balanceOf(buyer.address, nftID)).to.equal(1);
         }
 
-        const [ownedNFTs, totalNFTs] = await ticket_registry.getOwnedNFTs(guy, 1, 12);
+        const [ownedNFTs, totalNFTs] = await ticket_registry.getOwnedNFTs(guy, tokenId, 1, 12);
 
         expect(ownedNFTs.length).to.be.equal(boughtNFTs.length);
         expect(totalNFTs).to.be.equal(boughtNFTs.length);
@@ -1541,21 +630,21 @@ if (testTicketRegistry) {
     });
 
     describe('Access Control Tests', function () {
-      it('should restrict registration function to only users with BOOKING_ROLE', async function () {
+      it('should restrict registration function to only users with BOOTH_ROLE', async function () {
         // Test restriction of registration function
 
-        const BOOKING_ROLE = await ticket_registry.BOOKING_ROLE();
+        const BOOTH_ROLE = await ticket_registry.BOOTH_ROLE();
 
         let functionRequiringTicketRegistryRole = async () => {
           await ticket_registry.connect(buyer).registerObject(tokenId, ticket.address);
         };
 
-        // Expect the function to fail when called by an account without the BOOKING_ROLE
+        // Expect the function to fail when called by an account without the BOOTH_ROLE
         await expect(functionRequiringTicketRegistryRole()).to.be.revertedWith(
           'AccessControl: account ' +
             buyer.address.toLowerCase() +
             ' is missing role ' +
-            BOOKING_ROLE.toLowerCase(),
+            BOOTH_ROLE.toLowerCase(),
         );
       });
     });
@@ -1575,6 +664,7 @@ if (testTicketRegistry) {
           [owner.address, seller.address],
           [10, 90],
           uri,
+          ticket_registry.address,
         );
         await newTicketContract.deployed();
 
@@ -1589,7 +679,1452 @@ if (testTicketRegistry) {
   });
 }
 
-const testAuctions = false;
+const testBooth = true;
+if (testBooth) {
+  describe('Booth Contract', function () {
+    describe('Deployment and Initial Settings', function () {
+      it('should deploy the Booth contract', async function () {
+        expect(booth.address).to.not.equal(0x0);
+        expect(booth.address).to.not.equal(null);
+        expect(booth.address).to.not.equal(undefined);
+        expect(booth.address).to.not.equal('');
+      });
+
+      it('should have correct initial commission percent', async function () {
+        // Retrieve the current commission percent from the Booth contract
+        const currentCommissionPercent = await booth.commissionPercent();
+
+        // Assert that the current commission percent is equal to the expected initial value
+        expect(currentCommissionPercent).to.equal(
+          commissionPercent,
+          'Initial commission percent is incorrect',
+        );
+      });
+    });
+
+    describe('Functional Tests', function () {
+      it('should correctly set commission percent', async function () {
+        // Define a new commission percent
+        const newCommissionPercent = 30; // Example: 30%
+        // Set the new commission percent using the Booth contract
+        await booth.connect(owner).setCommissionPercent(newCommissionPercent);
+        // Retrieve the updated commission percent
+        const updatedCommissionPercent = await booth.commissionPercent();
+        // Assert that the updated commission percent matches the new value
+        expect(updatedCommissionPercent).to.equal(
+          newCommissionPercent,
+          'Commission percent was not updated correctly',
+        );
+      });
+
+      it('should correctly get platform commission percent in basis points', async function () {
+        const _commission = await booth.getCommissionPercent();
+        expect(_commission).to.equal(commissionPercent);
+      });
+
+      it('should correctly authorize buyers', async function () {
+        // Select a buyer to authorize (e.g., buyer2)
+        const buyerToAuthorize = buyer2.address;
+        // Authorize the buyer using the Booth contract
+        await booth.connect(owner).authorizeBuyer(buyerToAuthorize);
+        // Check if the buyer has been granted the BUYER_ROLE
+        const isBuyerAuthorized = await booth.hasRole(await booth.BUYER_ROLE(), buyerToAuthorize);
+        // Assert that the buyer is authorized
+        expect(isBuyerAuthorized).to.equal(true, 'Buyer was not authorized correctly');
+      });
+
+      it('should correctly revoke buyer authorization', async function () {
+        // Select a buyer to revoke authorization (e.g., buyer2)
+        const buyerToRevoke = buyer2.address;
+        // First, ensure the buyer is authorized
+        await booth.connect(owner).authorizeBuyer(buyerToRevoke);
+        // Now, revoke the buyer's authorization
+        await booth.connect(owner).revokeBuyer(buyerToRevoke);
+        // Check if the buyer no longer has the BUYER_ROLE
+        const isBuyerAuthorized = await booth.hasRole(await booth.BUYER_ROLE(), buyerToRevoke);
+        // Assert that the buyer's authorization is revoked
+        expect(isBuyerAuthorized).to.equal(false, 'Buyer authorization was not revoked correctly');
+      });
+
+      it('should correctly handle NFT purchases', async function () {
+        const nftId = 534662344;
+        const guy = buyer.address;
+        const initialBalance = await ethers.provider.getBalance(guy);
+
+        await booth.authorizeBuyer(guy);
+
+        const tx = await booth.connect(buyer).buy(tokenId, nftId, 1, guy, {
+          value: nftPrice.mul(1),
+        });
+
+        const receipt = await tx.wait();
+        const purchaseMadeEvent = receipt.events.find((event) => event.event === 'PurchaseMade');
+        expect(purchaseMadeEvent).to.exist;
+
+        await booth.revokeBuyer(guy);
+
+        const user_owns_nft = await ticket_registry.doesUserOwnNFT(guy, tokenId);
+        // console.log(user_owns_nft)
+        expect(user_owns_nft).to.be.true;
+        const finalBalance = await ethers.provider.getBalance(guy);
+        expect(initialBalance).to.be.above(finalBalance);
+      });
+
+      it('should correctly handle NFT purchases with discount', async function () {
+        const nftId = 1;
+        const qty = 1;
+        const guy = buyer.address;
+        await booth.authorizeBuyer(guy);
+        await booth
+          .connect(buyer)
+          .buy(tokenId, nftId, qty, guy, { value: ethers.utils.parseEther('0.005') });
+        await booth.revokeBuyer(guy);
+      });
+
+      it('should store purchase details accurately', async function () {
+        // Define the parameters for the buy function
+        let _nftId = 1;
+        let _qty = 1;
+        let _guy = buyer.address; // Assuming accounts[1] is the buyer
+        let _value = nftPrice.mul(_qty);
+
+        const [receiver, royaltyAmount] = await ticket.royaltyInfo(tokenId, nftPrice);
+
+        const _finalValue = _value.sub(royaltyAmount);
+
+        // Get the initial balance of the buyer
+        const initialBalance = await ethers.provider.getBalance(_guy);
+
+        // Call the buy function
+        await booth.authorizeBuyer(_guy);
+        await booth.connect(buyer).buy(tokenId, _nftId, _qty, _guy, { value: nftPrice.mul(_qty) });
+
+        // Get the final balance of the buyer
+        const finalBalance = await ethers.provider.getBalance(_guy);
+
+        // Check if the buyer's balance has decreased correctly
+        expect(initialBalance).to.be.above(finalBalance);
+
+        // Get Purchase Details for this transaction
+        const purchase = await booth.getLatestPurchaseForUserAndToken(_guy, tokenId);
+        // Check if the purchase details are correct
+        expect(purchase.tokenId).to.equal(tokenId);
+        expect(purchase.nftId).to.equal(_nftId);
+        expect(purchase.qty).to.equal(_qty);
+        expect(purchase.price).to.equal(_finalValue);
+        expect(purchase.timestamp).to.be.at.least(1); // Checking if the timestamp is a valid value
+      });
+
+      it('should correctly verify ticket access', async function () {
+        // Test verifying ticket access
+        const nftId = 1;
+        const qty = 1;
+        const guy = buyer.address;
+
+        // console.log('Initial Stock',currentStock)
+        await booth.authorizeBuyer(guy);
+        await booth.connect(buyer).buy(tokenId, nftId, qty, guy, { value: nftPrice.mul(qty) });
+        await booth.revokeBuyer(guy);
+
+        // Now, test if the buyer has access to the NFT
+        expect(await ticket_registry.doesUserOwnNFT(guy, tokenId)).to.be.true;
+      });
+
+      it('should correctly get total purchases for user', async function () {
+        const nftId = 534662344;
+        const guy = buyer.address;
+
+        await booth.authorizeBuyer(guy);
+        await booth.connect(buyer).buy(tokenId, nftId, 1, guy, {
+          value: nftPrice.mul(1),
+        });
+
+        const _totalPurchases = await booth.getTotalPurchasesForUser(guy);
+        expect(_totalPurchases).to.equal(1);
+      });
+
+      it('should correctly get purchase for user at index', async function () {
+        const nftId = 534662344;
+        const guy = buyer.address;
+        const qty = 1;
+
+        const [receiver, royaltyAmount] = await ticket.royaltyInfo(tokenId, nftPrice);
+
+        const _finalValue = nftPrice.mul(qty).sub(royaltyAmount);
+
+        await booth.authorizeBuyer(guy);
+        const tx = await booth.connect(buyer).buy(tokenId, nftId, qty, guy, {
+          value: nftPrice.mul(qty),
+        });
+
+        // Wait for the transaction to be mined
+        await tx.wait();
+
+        // Fetch the purchase details for the first (and only) purchase
+        const purchase = await booth.getPurchaseForUserAtIndex(guy, 0);
+
+        // Assert the purchase details
+        expect(purchase.tokenId).to.equal(tokenId);
+        expect(purchase.nftId).to.equal(nftId);
+        expect(purchase.qty).to.equal(qty);
+        expect(purchase.price).to.equal(_finalValue);
+        // You can also assert the timestamp is greater than 0 to ensure it's set
+        expect(purchase.timestamp).to.be.at.least(1);
+      });
+
+      it('should return the correct total number of purchases for a token', async function () {
+        const nftId = 534662344; // Example tokenId
+        const buyerAddress = buyer.address; // Assuming 'buyer' is an account in your test environment
+        const qty = 1;
+
+        // Optional: Make a purchase to ensure there's at least one
+        await booth.authorizeBuyer(buyerAddress);
+        await booth.connect(buyer).buy(tokenId, nftId, qty, buyerAddress, {
+          value: nftPrice.mul(qty),
+        });
+
+        // Call the function to get total purchases for the token
+        const totalPurchases = await booth.getTotalPurchasesForToken(tokenId);
+
+        // Assert the total purchases
+        // The expected number depends on the initial state of your contract and any interactions made during the test
+        expect(totalPurchases).to.equal(1); // Adjust this number based on your contract's state and test setup
+      });
+
+      it('should return the correct total number of purchases for a token', async function () {
+        const nftId = 534662344; // Example tokenId
+        const buyerAddress = buyer.address; // Assuming 'buyer' is an account in your test environment
+        const qty = 1;
+
+        // Optional: Make a purchase to ensure there's at least one
+        await booth.authorizeBuyer(buyerAddress);
+        await booth.connect(buyer).buy(tokenId, nftId, qty, buyerAddress, {
+          value: nftPrice.mul(qty),
+        });
+
+        // Call the function to get total purchases for the token
+        const latestPurchase = await booth.getLatestPurchaseForUserAndToken(buyerAddress, tokenId);
+        expect(latestPurchase.tokenId).to.equal(tokenId);
+      });
+    });
+
+    describe('Access Control Tests', function () {
+      it('should restrict access to BOOTH_ROLE functions', async function () {
+        // Define a function that requires the BOOTH_ROLE
+
+        const BOOTH_ROLE = await booth.BOOTH_ROLE();
+
+        let functionRequiringBoothRole = async () => {
+          await booth.connect(buyer).setCommissionPercent(900);
+        };
+
+        // Expect the function to fail when called by an account without the BOOTH_ROLE
+        await expect(functionRequiringBoothRole()).to.be.revertedWith(
+          'AccessControl: account ' +
+            buyer.address.toLowerCase() +
+            ' is missing role ' +
+            BOOTH_ROLE.toLowerCase(),
+        );
+      });
+
+      it('should restrict access to BUYER_ROLE functions', async function () {
+        const _nftId = 1;
+        const _qty = 1;
+        const _guy = buyer.address;
+
+        let functionRequiringBuyerRole = async () => {
+          await booth
+            .connect(buyer)
+            .buy(tokenId, _nftId, _qty, _guy, { value: nftPrice.mul(_qty) });
+        };
+
+        const BUYER_ROLE = await booth.BUYER_ROLE();
+
+        // Expect the function to fail when called by an account without the BUYER_ROLE
+        await expect(functionRequiringBuyerRole()).to.be.revertedWith(
+          'AccessControl: account ' +
+            buyer.address.toLowerCase() +
+            ' is missing role ' +
+            BUYER_ROLE.toLowerCase(),
+        );
+      });
+    });
+
+    describe('Event Emission Tests', function () {
+      it('should emit CommissionSet event correctly', async function () {
+        // Define a new commission percent
+        const newCommissionPercent = 30; // Example: 30%
+
+        // Set the new commission percent using the Booth contract and expect the CommissionSet event
+        await expect(booth.connect(owner).setCommissionPercent(newCommissionPercent))
+          .to.emit(booth, 'CommissionSet')
+          .withArgs(newCommissionPercent);
+      });
+
+      it('should emit BuyerAuthorized event correctly', async function () {
+        // Select a buyer to authorize (e.g., buyer2)
+        const buyerToAuthorize = buyer2.address;
+
+        // Authorize the buyer using the Booth contract and expect the BuyerAuthorized event
+        await expect(booth.connect(owner).authorizeBuyer(buyerToAuthorize))
+          .to.emit(booth, 'BuyerAuthorized')
+          .withArgs(buyerToAuthorize);
+      });
+
+      it('should emit PurchaseMade event correctly', async function () {
+        const nftId = 1;
+        const qty = 1;
+        const guy = buyer.address;
+
+        const [receiver, royaltyAmount] = await ticket.royaltyInfo(tokenId, nftPrice);
+        const _value = nftPrice.mul(qty);
+        const _finalValue = _value.sub(royaltyAmount);
+
+        // Grant BUYER_ROLE to the buyer
+        await booth.authorizeBuyer(guy);
+
+        // Get the current block for the timestamp
+        const block = await ethers.provider.getBlock('latest');
+        const timestamp = block.timestamp;
+
+        // Buy the NFT and expect the PurchaseMade event
+        const tx = await booth.connect(buyer).buy(tokenId, nftId, qty, guy, { value: _value });
+
+        // Get the block of the transaction
+        const txReceipt = await tx.wait();
+        const txBlock = await ethers.provider.getBlock(txReceipt.blockNumber);
+
+        // Check the timestamp difference
+        const timeDifference = Math.abs(txBlock.timestamp - timestamp);
+
+        // Expect the time difference to be less than or equal to 2 seconds
+        assert(timeDifference <= 2, 'Timestamp difference is more than 2 seconds');
+
+        const nftUri = await ticket.uri(nftId);
+        // Expect the PurchaseMade event with the correct arguments
+        await expect(tx)
+          .to.emit(booth, 'PurchaseMade')
+          .withArgs(tokenId, nftId, qty, guy, _finalValue, nftUri, txBlock.timestamp);
+      });
+    });
+  });
+}
+
+const testBoothUtils = true;
+if (testBoothUtils) {
+  describe('Booth Utils Contract', function () {
+    describe('Deployment and Initial Settings', function () {
+      it('should deploy the AffiliateUtils contract', async function () {
+        expect(booth_utils.address).to.not.equal(0x0);
+        expect(booth_utils.address).to.not.equal(null);
+        expect(booth_utils.address).to.not.equal(undefined);
+        expect(booth_utils.address).to.not.equal('');
+      });
+    });
+
+    describe('Functional Tests', function () {
+      const buyNFT = async (_nftId, _guy, _signer) => {
+        const initialBalance = await ethers.provider.getBalance(_guy);
+
+        await booth.authorizeBuyer(_guy);
+        const tx = await booth.connect(_signer).buy(tokenId, _nftId, 1, _guy, {
+          value: nftPrice.mul(1),
+        });
+
+        const receipt = await tx.wait();
+        const purchaseMadeEvent = receipt.events.find((event) => event.event === 'PurchaseMade');
+        expect(purchaseMadeEvent).to.exist;
+
+        const user_owns_nft = await ticket_registry.doesUserOwnNFT(_guy, tokenId);
+        // console.log(user_owns_nft)
+        expect(user_owns_nft).to.be.true;
+        const finalBalance = await ethers.provider.getBalance(_guy);
+        expect(initialBalance).to.be.above(finalBalance);
+      };
+
+      it('should get transaction history for user', async function () {
+        await buyNFT(423567 /** nftId */, buyer.address, buyer);
+        await buyNFT(657898 /** nftId */, buyer.address, buyer);
+        await buyNFT(234567 /** nftId */, buyer.address, buyer);
+
+        const { results, count } = await booth_utils.getUserTransactionHistory(
+          buyer.address,
+          1,
+          12,
+        );
+
+        // Process results to a more readable format
+        const processedResults = results.map((purchase) => ({
+          tokenId: purchase.tokenId.toString(),
+          nftId: purchase.nftId.toString(),
+          qty: purchase.qty.toString(),
+          price: ethers.utils.formatEther(purchase.price), // Convert to Ether for readability
+          timestamp: new Date(purchase.timestamp.toNumber() * 1000).toISOString(), // Convert to human-readable date
+        }));
+
+        // Log the processed results
+        // console.log(processedResults);
+        expect(processedResults.length).to.equal(3);
+        // console.log(count);
+        expect(count).to.equal(3);
+      });
+      it('should get total purchases for nft', async function () {
+        await buyNFT(423567 /** nftId */, buyer.address, buyer);
+        await buyNFT(345564 /** nftId */, affiliate.address, affiliate);
+        await buyNFT(576766 /** nftId */, affiliate2.address, affiliate2);
+        await buyNFT(465447 /** nftId */, affiliate3.address, affiliate3);
+        await buyNFT(768676 /** nftId */, affiliate4.address, affiliate4);
+        const totalPurchases = await booth_utils.getTotalPurchasesForNFT(tokenId);
+        expect(totalPurchases).to.equal(5);
+      });
+      it('should get user purchases for nft', async function () {
+        await buyNFT(423567 /** nftId */, buyer.address, buyer);
+        await buyNFT(345564 /** nftId */, buyer.address, buyer);
+        await buyNFT(576766 /** nftId */, buyer.address, buyer);
+        await buyNFT(465447 /** nftId */, buyer.address, buyer);
+        await buyNFT(768676 /** nftId */, buyer.address, buyer);
+        const { results, count } = await booth_utils.getUserPurchasesForNFT(
+          buyer.address,
+          tokenId,
+          1,
+          12,
+        );
+        // expect(purchases.length).to.equal(5);
+        // Process results to a more readable format
+
+        const processedResults = results.map((purchase) => ({
+          tokenId: purchase.tokenId.toString(),
+          nftId: purchase.nftId.toString(),
+          qty: purchase.qty.toString(),
+          price: ethers.utils.formatEther(purchase.price), // Convert to Ether for readability
+          timestamp: new Date(purchase.timestamp.toNumber() * 1000).toISOString(), // Convert to human-readable date
+        }));
+        expect(processedResults.length).to.equal(5);
+        expect(count).to.equal(5);
+      });
+      it('should get purchases for nft', async function () {
+        await buyNFT(423567 /** nftId */, buyer.address, buyer);
+        await buyNFT(345564 /** nftId */, buyer.address, buyer);
+        await buyNFT(576766 /** nftId */, buyer.address, buyer);
+        await buyNFT(465447 /** nftId */, buyer.address, buyer);
+        await buyNFT(768676 /** nftId */, buyer.address, buyer);
+        const { results, count } = await booth_utils.getPurchasesByTokenId(tokenId, 1, 12);
+        // expect(purchases.length).to.equal(5);
+        // Process results to a more readable format
+
+        const processedResults = results.map((purchase) => ({
+          tokenId: purchase.tokenId.toString(),
+          nftId: purchase.nftId.toString(),
+          qty: purchase.qty.toString(),
+          price: ethers.utils.formatEther(purchase.price), // Convert to Ether for readability
+          timestamp: new Date(purchase.timestamp.toNumber() * 1000).toISOString(), // Convert to human-readable date
+        }));
+        expect(processedResults.length).to.equal(5);
+        expect(count).to.equal(5);
+      });
+    });
+  });
+}
+
+const testAffiliates = true;
+if (testAffiliates) {
+  describe('Affiliates Contract', function () {
+    async function deployTicketNFT(_id, stock, use_stock, limited_edition, seller_address) {
+      // Seller will deploy a nft
+      const price = ethers.utils.parseEther('0.01');
+      const id = _id;
+      Ticket = await ethers.getContractFactory('Ticket', seller);
+      ticketContract = await Ticket.deploy(
+        id, // tokenId
+        price, // price
+        stock, // initialStock
+        use_stock, // useStock
+        limited_edition, // limited Edition
+        seller_address, // Royalty address, same as seller
+        500, // royalty percentage represented in basis points
+        [owner.address, seller_address], // Payees
+        [10, 90], // Payees distribution commission
+        uri, // nft uri
+        ticket_registry.address,
+      );
+      await ticketContract.deployed();
+      // Register nft in booth and registry
+      await ticket_registry.registerObject(id, ticket.address);
+      await ticketContract.grantRole(await ticketContract.BOOTH_ROLE(), booth.address);
+      // Enroll initial affiliate
+      await affiliates.enrollInitialAffiliateForNFT(id, seller_address);
+
+      return { ticketContract, id };
+    }
+
+    describe('Deployment and Initial Settings', function () {
+      it('should deploy the Affiliates contract', async function () {
+        expect(affiliates.address).to.not.equal(0x0);
+        expect(affiliates.address).to.not.equal(null);
+        expect(affiliates.address).to.not.equal(undefined);
+        expect(affiliates.address).to.not.equal('');
+      });
+
+      it('should have correct initial referral reward basis points', async function () {
+        for (let i = 0; i < referralRewardBasisPointsArray.length; i++) {
+          for (let j = 0; j < referralRewardBasisPointsArray[i].length; j++) {
+            const deployedReferralReward = await affiliates.referralRewardBasisPoints(i, j);
+            expect(deployedReferralReward).to.equal(referralRewardBasisPointsArray[i][j]);
+          }
+        }
+      });
+
+      it('should have correct initial rank criterias', async function () {
+        for (let i = 0; i < rankCriteriasArray.length; i++) {
+          const deployedRankCriteria = await affiliates.rankCriterias(i);
+          expect(deployedRankCriteria.requiredDirectReferrals).to.equal(
+            rankCriteriasArray[i].requiredDirectReferrals,
+          );
+          expect(deployedRankCriteria.requiredSalesVolume).to.equal(
+            rankCriteriasArray[i].requiredSalesVolume,
+          );
+        }
+      });
+
+      it('should have correct initial max referral depth', async function () {
+        const deployedMaxReferralDepth = await affiliates.maxDepth();
+        expect(deployedMaxReferralDepth).to.equal(maxReferralDepth);
+      });
+    });
+
+    describe('Functional Tests', function () {
+      it('should enroll an affiliate for a specific NFT', async function () {
+        const { nft, id } = await deployTicketNFT(
+          573874501, // id
+          100, // stock
+          true, // use stock
+          true, // limited edition
+          seller.address, // seller address
+        );
+
+        // Check that Seller has been enrolled as the initial affiliate
+        const sellerAffiliateData = await affiliates.getAffiliateNFTData(id, seller.address);
+        expect(sellerAffiliateData.isAffiliated).to.be.true;
+        expect(sellerAffiliateData.referrer).to.equal(seller.address);
+      });
+
+      it('should handle initial affiliate correctly', async function () {
+        // Enroll a new affiliate for the NFT
+        await affiliates.enrollInitialAffiliateForNFT(tokenId, affiliate.address);
+        const data = await affiliates.getAffiliateNFTData(tokenId, affiliate.address);
+        expect(data.isAffiliated).to.be.true;
+      });
+
+      it('should handle referrals correctly', async function () {
+        // Enroll a new affiliate for the NFT
+        await affiliates.enrollInitialAffiliateForNFT(tokenId, affiliate.address);
+        const data = await affiliates.getAffiliateNFTData(tokenId, affiliate.address);
+        // Check that affiliate.address has been enrolled as an affiliate
+        expect(data.isAffiliated).to.be.true;
+
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate2.address, affiliate.address);
+
+        // Check that affiliate.address is the referrer of affiliate2.address
+        const affiliateReferrer = await affiliates.getAffiliateReferrer(affiliate2.address);
+        expect(affiliateReferrer).to.equal(affiliate.address);
+      });
+
+      it('should correctly set and update referral rewards', async function () {
+        // const BOOTH_ROLE = await affiliates.BOOTH_ROLE();
+        // await affiliates.grantRole(BOOTH_ROLE, owner.address);
+        // Update referral rewards
+        const newRewardBasisPoints = 1500; // Example new reward basis points (15%)
+        const levelToUpdate = 1; // Example level to update
+        const rankToUpdate = 1; // Example rank to update
+        // Update the reward for a specific level and rank
+        await affiliates
+          .connect(owner)
+          .setReferralRewardBasisPoints(levelToUpdate, rankToUpdate, newRewardBasisPoints);
+        // Check that the reward was updated
+        const updatedReward = await affiliates.referralRewardBasisPoints(
+          levelToUpdate,
+          rankToUpdate,
+        );
+        expect(updatedReward).to.equal(newRewardBasisPoints);
+      });
+
+      it('should correctly set and update rank criteria', async function () {
+        // Example new rank criteria
+        const newRankCriteria = {
+          requiredDirectReferrals: 15, // New required number of direct referrals
+          requiredSalesVolume: ethers.utils.parseEther('7.5'), // New required sales volume
+        };
+        const rankToUpdate = 1; // Example rank to update
+
+        // Update the rank criteria for a specific rank
+        await affiliates.connect(owner).setRankCriteria(rankToUpdate, newRankCriteria);
+
+        // Check that the rank criteria were updated
+        const updatedCriteria = await affiliates.getRankCriteria(rankToUpdate);
+
+        expect(updatedCriteria.requiredDirectReferrals).to.equal(
+          newRankCriteria.requiredDirectReferrals,
+        );
+        expect(updatedCriteria.requiredSalesVolume).to.equal(newRankCriteria.requiredSalesVolume);
+      });
+
+      it('should correctly assign and manage referrer ranks', async function () {
+        await affiliates.enrollInitialAffiliateForNFT(tokenId, seller.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate.address, seller.address);
+        // Assign a rank to a referrer
+        const initialRank = 0; // Example initial rank
+        await affiliates.setReferrerRank(affiliate.address, initialRank, tokenId);
+        // Check the assigned rank
+        let currentRank = await affiliates.getAffiliateRank(affiliate.address);
+        expect(currentRank).to.equal(initialRank);
+      });
+
+      it('should increase commission for rank ups', async function () {
+        await affiliates.enrollInitialAffiliateForNFT(tokenId, affiliate.address);
+
+        // // Assign a rank to a referrer
+        const initialRank = 0; // Example initial rank
+        let currentRank = await affiliates.getAffiliateRank(affiliate.address);
+        expect(currentRank).to.equal(initialRank);
+
+        // Calculate commission for rank 0
+        const commission = nftPrice.mul(commissionPercent).div(10000);
+        const remainingPurchasePrice = nftPrice.sub(commission);
+        const calculatedReward = await affiliates.calculateReward(
+          tokenId,
+          affiliate.address,
+          remainingPurchasePrice,
+        );
+
+        let rank2 = initialRank + 1;
+        await affiliates.setReferrerRank(affiliate.address, rank2, tokenId);
+        const calculatedReward2 = await affiliates.calculateReward(
+          tokenId,
+          affiliate.address,
+          remainingPurchasePrice,
+        );
+
+        let rank3 = rank2 + 1;
+        await affiliates.setReferrerRank(affiliate.address, rank3, tokenId);
+        const calculatedReward3 = await affiliates.calculateReward(
+          tokenId,
+          affiliate.address,
+          remainingPurchasePrice,
+        );
+
+        let rank4 = rank3 + 1;
+        await affiliates.setReferrerRank(affiliate.address, rank4, tokenId);
+        const calculatedReward4 = await affiliates.calculateReward(
+          tokenId,
+          affiliate.address,
+          remainingPurchasePrice,
+        );
+
+        let rank5 = rank4 + 1;
+        await affiliates.setReferrerRank(affiliate.address, rank5, tokenId);
+        const calculatedReward5 = await affiliates.calculateReward(
+          tokenId,
+          affiliate.address,
+          remainingPurchasePrice,
+        );
+
+        expect(calculatedReward).to.be.below(calculatedReward2);
+        expect(calculatedReward2).to.be.below(calculatedReward3);
+        expect(calculatedReward3).to.be.below(calculatedReward4);
+        expect(calculatedReward4).to.be.below(calculatedReward5);
+        await expect(affiliates.setReferrerRank(affiliate.address, 6, tokenId)).to.be.revertedWith(
+          'Invalid rank',
+        );
+      });
+
+      it('should not allow rank assignment for non-enrolled referrer', async function () {
+        const nonEnrolledAffiliate = ethers.Wallet.createRandom().address;
+        const rankToAssign = 0;
+        await expect(
+          affiliates.setReferrerRank(nonEnrolledAffiliate, rankToAssign, tokenId),
+        ).to.be.revertedWith('Referrer not enrolled for NFT');
+      });
+
+      it('should update sales volume correctly', async function () {
+        // Set a referrer
+        await affiliates.enrollInitialAffiliateForNFT(tokenId, seller.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate.address, seller.address);
+        // Simulate a sale and update the sales volume
+        const saleAmount = ethers.utils.parseEther('1'); // Example sale amount
+        await affiliates.connect(owner).updateSalesVolume(affiliate.address, saleAmount);
+        // Check the updated sales volume
+        const affiliateSalesVolume = await affiliates.getAffiliateSalesVolume(affiliate.address);
+        expect(affiliateSalesVolume).to.equal(saleAmount);
+        // Optionally, simulate additional sales and check cumulative sales volume
+        const additionalSaleAmount = ethers.utils.parseEther('2'); // Example additional sale amount
+        await affiliates.connect(owner).updateSalesVolume(affiliate.address, additionalSaleAmount);
+        const totalSalesVolume = await affiliates.getAffiliateSalesVolume(affiliate.address);
+        expect(totalSalesVolume).to.equal(saleAmount.add(additionalSaleAmount));
+      });
+
+      it('should not update sales volume for non existing affiliate', async function () {
+        // Simulate a sale and update the sales volume
+        const saleAmount = ethers.utils.parseEther('1'); // Example sale amount
+        // Expect the function call to be reverted
+        await expect(
+          affiliates.connect(owner).updateSalesVolume(affiliate.address, saleAmount),
+        ).to.be.revertedWith('Affiliate does not exist');
+      });
+
+      it('should check if an affiliate is eligible for rankup', async function () {
+        // become affiliate for nft
+        await affiliates.enrollInitialAffiliateForNFT(tokenId, seller.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate.address, seller.address);
+        // Affiliate is ccurrently rank 0, he will Enrol 10 more affiliates to reach rank 1
+        // Create an array to store the new affiliates
+        let newAffiliates = [];
+        // Generate 10 random accounts
+        for (let i = 0; i < 10; i++) {
+          // Create a new random account
+          const randomWallet = ethers.Wallet.createRandom();
+          // Add the new account to the list of affiliates
+          newAffiliates.push(randomWallet.address);
+        }
+        for (let newAffiliate of newAffiliates) {
+          await affiliates.enrollAffiliateForNFT(tokenId, newAffiliate, affiliate.address);
+        }
+        // Update Sales volume to meet required criteri for rankup
+        const saleAmount = ethers.utils.parseEther('5');
+        await affiliates.connect(owner).updateSalesVolume(affiliate.address, saleAmount);
+        // Check eligibility for rank up
+        const eligibility = await affiliates.checkEligibilityForRankUp(affiliate.address);
+        expect(eligibility.eligible).to.be.true;
+      });
+
+      it('should handle rank up based on criteria', async function () {
+        // become affiliate for nft
+        await affiliates.enrollInitialAffiliateForNFT(tokenId, seller.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate.address, seller.address);
+        // Affiliate is ccurrently rank 0, he will Enrol 10 more affiliates to reach rank 1
+        // Create an array to store the new affiliates
+        let newAffiliates = [];
+        // Generate 10 random accounts
+        for (let i = 0; i < 10; i++) {
+          // Create a new random account
+          const randomWallet = ethers.Wallet.createRandom();
+          // Add the new account to the list of affiliates
+          newAffiliates.push(randomWallet.address);
+        }
+        for (let newAffiliate of newAffiliates) {
+          await affiliates.enrollAffiliateForNFT(tokenId, newAffiliate, affiliate.address);
+        }
+        // Update Sales volume to meet required criteri for rankup
+        const saleAmount = ethers.utils.parseEther('5');
+        await affiliates.connect(owner).updateSalesVolume(affiliate.address, saleAmount);
+        // Check eligibility for rank up
+        const eligibility = await affiliates.checkEligibilityForRankUp(affiliate.address);
+        expect(eligibility.eligible).to.be.true;
+        // Rankup
+        await affiliates.rankUp(affiliate.address);
+        // Affiliate rank it should be 1
+        let currentRank = await affiliates.getAffiliateRank(affiliate.address);
+        expect(currentRank).to.equal(1);
+      });
+
+      it('should correctly handle affiliate program commissions', async function () {
+        nftId = 4534655445;
+        // Set up the referral structure
+        await affiliates.enrollInitialAffiliateForNFT(tokenId, seller.address); // Affiliate 1 referred by Seller
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate.address, seller.address); // Affiliate 1 referred by Seller
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate2.address, affiliate.address); // Affiliate 2 referred by Affiliate 1
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate3.address, affiliate2.address); // Affiliate 3 referred by Affiliate 2
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate4.address, affiliate3.address); // Affiliate 4 referred by Affiliate 3
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate5.address, affiliate4.address); // Affiliate 5 referred by Affiliate 4
+
+        // Setup up referrer ranks
+        await affiliates.setReferrerRank(affiliate.address, 1, tokenId); // Set rank for Affiliate 1
+        await affiliates.setReferrerRank(affiliate2.address, 1, tokenId); // Set rank for Affiliate 2
+        // Continue for other affiliates as needed
+
+        // Record initial balances for affiliates and buyer (affiliate5)
+        let initialBalances = [];
+        for (let aff of [affiliate, affiliate2, affiliate3, affiliate4, affiliate5]) {
+          let balance = await ethers.provider.getBalance(aff.address);
+          initialBalances.push(balance);
+        }
+
+        // Affiliate 5 makes a purchase
+        await booth.authorizeBuyer(affiliate5.address);
+        await booth
+          .connect(affiliate5)
+          .affiliateBuy(tokenId, nftId, 1, affiliate5.address, affiliate4.address, {
+            value: nftPrice,
+          });
+
+        // Record final balances
+        let finalBalances = [];
+        for (let aff of [affiliate, affiliate2, affiliate3, affiliate4, affiliate5]) {
+          let balance = await ethers.provider.getBalance(aff.address);
+          finalBalances.push(balance);
+        }
+
+        // Compare initial and final balances for affiliates
+        for (let i = 0; i < finalBalances.length - 1; i++) {
+          expect(finalBalances[i]).to.be.above(
+            initialBalances[i],
+            `Final balance of affiliate at index ${i} should be higher than its initial balance`,
+          );
+        }
+
+        // For Affiliate 5, check if the balance decreased due to the purchase
+        expect(finalBalances[4]).to.be.below(
+          initialBalances[4],
+          'Affiliate 5 final balance should be lower than its initial balance due to the purchase',
+        );
+      });
+
+      it('should correctly set and retrieve referrers', async function () {
+        // Set up the referral structure
+        await affiliates.enrollInitialAffiliateForNFT(tokenId, seller.address); // Affiliate 1 referred by Seller
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate.address, seller.address); // Affiliate 1 referred by Seller
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate2.address, affiliate.address); // Affiliate 2 referred by Affiliate 1
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate3.address, affiliate2.address); // Affiliate 3 referred by Affiliate 2
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate4.address, affiliate3.address); // Affiliate 4 referred by Affiliate 3
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate5.address, affiliate4.address); // Affiliate 5 referred by Affiliate 4
+
+        // Retrieve and check referrers
+        const nftDataOfAffiliate1 = await affiliates.getAffiliateNFTData(
+          tokenId,
+          affiliate.address,
+        );
+        expect(nftDataOfAffiliate1.referrer).to.equal(seller.address);
+
+        const nftDataOfAffiliate2 = await affiliates.getAffiliateNFTData(
+          tokenId,
+          affiliate2.address,
+        );
+        expect(nftDataOfAffiliate2.referrer).to.equal(affiliate.address);
+
+        const nftDataOfAffiliate3 = await affiliates.getAffiliateNFTData(
+          tokenId,
+          affiliate3.address,
+        );
+        expect(nftDataOfAffiliate3.referrer).to.equal(affiliate2.address);
+
+        const nftDataOfAffiliate4 = await affiliates.getAffiliateNFTData(
+          tokenId,
+          affiliate4.address,
+        );
+        expect(nftDataOfAffiliate4.referrer).to.equal(affiliate3.address);
+
+        const nftDataOfAffiliate5 = await affiliates.getAffiliateNFTData(
+          tokenId,
+          affiliate5.address,
+        );
+        expect(nftDataOfAffiliate5.referrer).to.equal(affiliate4.address);
+      });
+
+      it('should correctly calculate rewards', async function () {
+        const nftId = 98732465;
+        // Set up the referral structure
+        await affiliates.enrollInitialAffiliateForNFT(tokenId, seller.address);
+
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate.address, seller.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate2.address, affiliate.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate3.address, affiliate2.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate4.address, affiliate3.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate5.address, affiliate4.address);
+
+        const commission = nftPrice.mul(commissionPercent).div(100);
+
+        const [receiver, royaltyAmount] = await ticket.royaltyInfo(tokenId, nftPrice);
+
+        await booth.authorizeBuyer(affiliate5.address);
+        await booth
+          .connect(affiliate5)
+          .affiliateBuy(tokenId, nftId, 1, affiliate5.address, affiliate4.address, {
+            value: nftPrice,
+          });
+
+        // Verify rewards for each affiliate
+        for (const aff of [affiliate, affiliate2, affiliate3, affiliate4]) {
+          const affiliateLevel = await affiliates.getAffiliateLevel(tokenId, aff.address);
+          const affiliateRank = await affiliates.getAffiliateRank(aff.address);
+          const referralRewardBasisPoint =
+            await affiliates.getReferralRewardBasisPointsForLevelAndRank(
+              affiliateLevel,
+              affiliateRank,
+            );
+          const expectedReward = commission.mul(referralRewardBasisPoint).div(10000);
+          const actualReward = await affiliates.getAffiliateTotalRewards(tokenId, aff.address);
+          expect(actualReward).to.be.closeTo(
+            expectedReward,
+            royaltyAmount,
+            `Reward mismatch for affiliate at level ${affiliateLevel} and rank ${affiliateRank}`,
+          );
+        }
+      });
+
+      it('should correctly calculate referral level', async function () {
+        // Set up the referral structure
+        await affiliates.enrollInitialAffiliateForNFT(tokenId, seller.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate.address, seller.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate2.address, affiliate.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate3.address, affiliate2.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate4.address, affiliate3.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate5.address, affiliate4.address);
+
+        const affiliate1Level = await affiliates.getAffiliateLevel(tokenId, affiliate.address);
+        const affiliate2Level = await affiliates.getAffiliateLevel(tokenId, affiliate2.address);
+        const affiliate3Level = await affiliates.getAffiliateLevel(tokenId, affiliate3.address);
+        const affiliate4Level = await affiliates.getAffiliateLevel(tokenId, affiliate4.address);
+        const affiliate5Level = await affiliates.getAffiliateLevel(tokenId, affiliate5.address);
+
+        expect(affiliate1Level).to.equal(1);
+        expect(affiliate2Level).to.equal(2);
+        expect(affiliate3Level).to.equal(3);
+        expect(affiliate4Level).to.equal(4);
+        // Max depth is reached aand the next one should be 0
+        expect(affiliate5Level).to.equal(0);
+      });
+
+      it('should correctly retrieve affiliate nft information', async function () {
+        // Join affiliate program
+        await affiliates.enrollInitialAffiliateForNFT(tokenId, seller.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate.address, seller.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate2.address, affiliate.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate3.address, affiliate.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate4.address, affiliate.address);
+
+        // Get affiliate info for that nft
+        const affiliateInfo = await affiliates.getAffiliateNFTData(tokenId, affiliate.address);
+        // Check referred users
+        expect(affiliateInfo.referredUsers.length).to.equal(3);
+      });
+
+      it('should update and verify affiliate direct referrals', async function () {
+        // Join affiliate program
+        await affiliates.enrollInitialAffiliateForNFT(tokenId, seller.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate.address, seller.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate2.address, affiliate.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate3.address, affiliate.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate4.address, affiliate.address);
+
+        // Get affiliate info for that nft
+        const affiliateDirectReferrals = await affiliates.getAffiliateDirectReferrals(
+          affiliate.address,
+        );
+        // Set rank for affiliate
+        expect(affiliateDirectReferrals).to.equal(3);
+      });
+
+      it('should correctly calculate referral rewards in a complete hierarchy', async function () {
+        // Set up the referral structure
+        const nftId = 573874501;
+
+        // Set up the referral structure
+        await affiliates.enrollInitialAffiliateForNFT(tokenId, seller.address);
+        // affiliate -> affiliate2 -> affiliate3 -> affiliate4 -> affiliate5
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate.address, seller.address); // Affiliate 1 referred by Seller
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate2.address, affiliate.address); // Affiliate 2 referred by Affiliate 1
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate3.address, affiliate2.address); // Affiliate 3 referred by Affiliate 2
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate4.address, affiliate3.address); // Affiliate 4 referred by Affiliate 3
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate5.address, affiliate4.address); // Affiliate 5 referred by Affiliate 4
+
+        // // Set up the referrer ranks
+        await affiliates.setReferrerRank(affiliate.address, 0, tokenId);
+        await affiliates.setReferrerRank(affiliate2.address, 1, tokenId);
+        await affiliates.setReferrerRank(affiliate3.address, 2, tokenId);
+        await affiliates.setReferrerRank(affiliate4.address, 3, tokenId);
+        await affiliates.setReferrerRank(affiliate5.address, 4, tokenId);
+
+        // BigNumber for purchase price
+        const commission = nftPrice.mul(commissionPercent).div(100);
+
+        // Make the purchase by Affiliate 5
+        await booth.authorizeBuyer(affiliate5.address);
+        await booth
+          .connect(affiliate5)
+          .affiliateBuy(tokenId, nftId, 1, affiliate5.address, affiliate4.address, {
+            value: nftPrice,
+          });
+
+        const [receiver, royaltyAmount] = await ticket.royaltyInfo(tokenId, nftPrice);
+
+        for (const aff of [affiliate, affiliate2, affiliate3, affiliate4]) {
+          const affiliateLevel = await affiliates.getAffiliateLevel(tokenId, aff.address);
+          const affiliateRank = await affiliates.getAffiliateRank(aff.address);
+          const referralRewardBasisPoint =
+            await affiliates.getReferralRewardBasisPointsForLevelAndRank(
+              affiliateLevel,
+              affiliateRank,
+            );
+          const expectedReward = commission.mul(referralRewardBasisPoint).div(10000);
+          const actualReward = await affiliates.getAffiliateTotalRewards(tokenId, aff.address);
+          expect(actualReward).to.be.closeTo(
+            expectedReward,
+            royaltyAmount,
+            `Reward mismatch for affiliate at level ${affiliateLevel} and rank ${affiliateRank}`,
+          );
+        }
+      });
+
+      it('should start a new hierarchy after max depth is reached', async function () {
+        const nftId = 543266543;
+
+        // Set up the initial referral structure
+        await affiliates.enrollInitialAffiliateForNFT(tokenId, affiliate.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate2.address, affiliate.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate3.address, affiliate2.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate4.address, affiliate3.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate5.address, affiliate4.address); // This should reach maxDepth
+
+        // BigNumber for purchase price
+        // Calculate commission using BigNumber operations
+        const commission = nftPrice.mul(commissionPercent).div(100);
+
+        await booth.authorizeBuyer(buyer.address);
+        await booth
+          .connect(buyer)
+          .affiliateBuy(tokenId, nftId, 1, buyer.address, affiliate5.address, {
+            value: nftPrice,
+          });
+
+        const [receiver, royaltyAmount] = await ticket.royaltyInfo(tokenId, nftPrice);
+
+        for (const aff of [affiliate, affiliate2, affiliate3, affiliate4]) {
+          const affiliateLevel = await affiliates.getAffiliateLevel(tokenId, aff.address);
+          const affiliateRank = await affiliates.getAffiliateRank(aff.address);
+          const referralRewardBasisPoint =
+            await affiliates.getReferralRewardBasisPointsForLevelAndRank(
+              affiliateLevel,
+              affiliateRank,
+            );
+          const expectedReward = commission.mul(referralRewardBasisPoint).div(10000);
+          const actualReward = await affiliates.getAffiliateTotalRewards(tokenId, aff.address);
+          expect(actualReward).to.be.closeTo(
+            expectedReward,
+            royaltyAmount,
+            `Reward mismatch for affiliate at level ${affiliateLevel} and rank ${affiliateRank}`,
+          );
+        }
+
+        // Now we test affilite 4 inviting new members and we needd to verify this rewards are distributed correctly as well
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate6.address, affiliate5.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate7.address, affiliate6.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate8.address, affiliate7.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate9.address, affiliate8.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate10.address, affiliate9.address);
+
+        await booth.authorizeBuyer(buyer.address);
+        await booth
+          .connect(buyer)
+          .affiliateBuy(tokenId, nftId, 1, buyer.address, affiliate10.address, {
+            value: nftPrice,
+          });
+
+        for (const aff of [affiliate5, affiliate6, affiliate7, affiliate8, affiliate9]) {
+          const affiliateLevel = await affiliates.getAffiliateLevel(tokenId, aff.address);
+          const affiliateRank = await affiliates.getAffiliateRank(aff.address);
+          const referralRewardBasisPoint =
+            await affiliates.getReferralRewardBasisPointsForLevelAndRank(
+              affiliateLevel,
+              affiliateRank,
+            );
+          const expectedReward = commission.mul(referralRewardBasisPoint).div(10000);
+          const actualReward = await affiliates.getAffiliateTotalRewards(tokenId, aff.address);
+          expect(actualReward).to.be.closeTo(
+            expectedReward,
+            royaltyAmount,
+            `Reward mismatch for affiliate at level ${affiliateLevel} and rank ${affiliateRank}`,
+          );
+        }
+      });
+
+      it('should correctly return the referral reward basis points', async function () {
+        const rewardBasisPoints = await affiliates.getReferralRewardBasisPoints();
+
+        // Expected values
+        const expectedValues = referralRewardBasisPointsArray;
+
+        // Iterate through each level and rank, and compare the values
+        for (let level = 0; level < expectedValues.length; level++) {
+          for (let rank = 0; rank < expectedValues[level].length; rank++) {
+            const expectedValue = expectedValues[level][rank];
+            const actualValue = rewardBasisPoints[level][rank].toNumber();
+
+            expect(actualValue).to.equal(
+              expectedValue,
+              `Mismatch at level ${level + 1}, rank ${rank + 1}`,
+            );
+          }
+        }
+      });
+
+      it('should correctly return the maximum referral depth', async function () {
+        const initialMaxDepth = maxReferralDepth;
+
+        const _maxDepth = await affiliates.getMaxDepth();
+
+        expect(initialMaxDepth).to.equal(_maxDepth);
+      });
+
+      it('should correctly return referral reward basis points for a given level and rank', async function () {
+        const _result = await affiliates.getReferralRewardBasisPointsForLevelAndRank(
+          0 /** uint256 level */,
+          0 /** uint256 rank */,
+        );
+        expect(_result).to.equal(1000);
+      });
+
+      it('should correctly return the rank criteria for a given rank', async function () {
+        const rank = 1; // The rank for which criteria are being tested
+        const _result = await affiliates.getRankCriteria(rank);
+
+        // Expected values for rank 1
+        const expectedDirectReferrals = 10; // Expected number of direct referrals
+        const expectedSalesVolume = ethers.utils.parseEther('5'); // Expected sales volume (5 ETH in wei)
+
+        // Check if the returned values match the expected values
+        expect(_result.requiredDirectReferrals.toNumber()).to.equal(
+          expectedDirectReferrals,
+          `Mismatch in required direct referrals for rank ${rank}`,
+        );
+        expect(_result.requiredSalesVolume.toString()).to.equal(
+          expectedSalesVolume.toString(),
+          `Mismatch in required sales volume for rank ${rank}`,
+        );
+      });
+
+      it('should correctly return the total number of affiliates for a given NFT', async function () {
+        // Set up the initial referral structure
+        await affiliates.enrollInitialAffiliateForNFT(tokenId, seller.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate.address, seller.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate2.address, affiliate.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate3.address, affiliate2.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate4.address, affiliate3.address);
+
+        const totalNFTAffiliates = await affiliates.getTotalNFTAffiliates(tokenId);
+        expect(totalNFTAffiliates).to.equal(5);
+      });
+
+      it('should verify is affiliate for specific tokenID', async function () {
+        // Set up the initial referral structure
+        await affiliates.enrollInitialAffiliateForNFT(tokenId, seller.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, affiliate.address, seller.address);
+        const verifyIsAffiliate = await affiliates.isAffiliateForNFT(tokenId, affiliate.address);
+        expect(verifyIsAffiliate).to.be.true;
+      });
+    });
+
+    describe('Edge Cases', function () {
+      it('should avoid setting invalid commission percentages', async function () {
+        await expect(
+          booth.setCommissionPercent(11000), // 110% in basis points
+        ).to.be.revertedWith('Invalid commission percentage');
+      });
+
+      it("should avoid joining program for object that doesn't exist", async function () {
+        await expect(
+          affiliates.enrollInitialAffiliateForNFT(999, owner.address),
+        ).to.be.revertedWith('Object is not registered');
+      });
+
+      it('should avoid joining the affiliate program twice for the same object', async function () {
+        await affiliates.enrollInitialAffiliateForNFT(tokenId, seller.address);
+        await affiliates.enrollAffiliateForNFT(tokenId, owner.address, seller.address);
+        await expect(
+          affiliates.enrollAffiliateForNFT(tokenId, owner.address, seller.address),
+        ).to.be.revertedWith('Already an affiliate for this NFT');
+      });
+    });
+
+    describe('Access Control Tests', function () {
+      let nonBoothAccount;
+      let nonAffiliateAccount;
+
+      beforeEach(async function () {
+        [, nonBoothAccount, nonAffiliateAccount] = await ethers.getSigners();
+      });
+
+      it('should restrict access to BOOTH_ROLE functions', async function () {
+        const levelToUpdate = 1;
+        const rankToUpdate = 1;
+        const newRewardBasisPoints = 1500;
+        const BOOTH_ROLE = await affiliates.BOOTH_ROLE();
+
+        await expect(
+          affiliates
+            .connect(nonBoothAccount)
+            .setReferralRewardBasisPoints(levelToUpdate, rankToUpdate, newRewardBasisPoints),
+        ).to.be.revertedWith(
+          'AccessControl: account ' +
+            nonBoothAccount.address.toLowerCase() +
+            ' is missing role ' +
+            BOOTH_ROLE.toLowerCase(),
+        );
+      });
+    });
+
+    describe('Event Emission Tests', function () {
+      it('should emit ReferralRewardUpdated event correctly', async function () {
+        const level = 0;
+        const rank = 0;
+        const newRewardBasisPoints = 1500; // New reward basis points
+
+        await expect(
+          affiliates.connect(owner).setReferralRewardBasisPoints(level, rank, newRewardBasisPoints),
+        )
+          .to.emit(affiliates, 'ReferralRewardUpdated')
+          .withArgs(level, rank, newRewardBasisPoints);
+      });
+
+      it('should emit RankUp event correctly', async function () {
+        const { nft, id } = await deployTicketNFT(
+          573874501, // id
+          100, // stock
+          true, // use stock
+          true, // limited edition
+          seller.address, // seller address
+        );
+
+        // become affiliate for nft
+        await affiliates.enrollAffiliateForNFT(id, affiliate.address, seller.address);
+        // Affiliate is ccurrently rank 0, he will Enrol 10 more affiliates to reach rank 1
+        // Create an array to store the new affiliates
+        let newAffiliates = [];
+        let initialRank = 0;
+
+        // Generate 10 random accounts
+        for (let i = 0; i < 10; i++) {
+          // Create a new random account
+          const randomWallet = ethers.Wallet.createRandom();
+          // Add the new account to the list of affiliates
+          newAffiliates.push(randomWallet.address);
+        }
+
+        for (let newAffiliate of newAffiliates) {
+          await affiliates.enrollAffiliateForNFT(id, newAffiliate, affiliate.address);
+        }
+        // Update Sales volume to meet required criteri for rankup
+        const saleAmount = ethers.utils.parseEther('5');
+        await affiliates.connect(owner).updateSalesVolume(affiliate.address, saleAmount);
+        // Check eligibility for rank up
+        const eligibility = await affiliates.checkEligibilityForRankUp(affiliate.address);
+        expect(eligibility.eligible).to.be.true;
+
+        // Perform the rank up and expect the RankUp event to be emitted
+        await expect(affiliates.rankUp(affiliate.address))
+          .to.emit(affiliates, 'RankUp')
+          .withArgs(affiliate.address, initialRank + 1);
+
+        // Verify that the rank has been updated
+        const newRank = await affiliates.getAffiliateRank(affiliate.address);
+        expect(newRank).to.equal(initialRank + 1);
+      });
+
+      it('should emit SalesVolumeUpdated event correctly', async function () {
+        const { nft, id } = await deployTicketNFT(
+          573874501, // id
+          100, // stock
+          true, // use stock
+          true, // limited edition
+          seller.address, // seller address
+        );
+
+        // become affiliate for nft
+        await affiliates.enrollAffiliateForNFT(id, affiliate.address, seller.address);
+
+        const amount = ethers.utils.parseEther('1');
+
+        await expect(affiliates.connect(owner).updateSalesVolume(affiliate.address, amount))
+          .to.emit(affiliates, 'SalesVolumeUpdated')
+          .withArgs(affiliate.address, amount);
+      });
+    });
+  });
+}
+
+const testAffiliateUtils = true;
+if (testAffiliateUtils) {
+  describe('AffiliateUtils Contract', function () {
+    describe('Deployment and Initial Settings', function () {
+      it('should deploy the AffiliateUtils contract', async function () {
+        expect(affiliate_utils.address).to.not.equal(0x0);
+        expect(affiliate_utils.address).to.not.equal(null);
+        expect(affiliate_utils.address).to.not.equal(undefined);
+        expect(affiliate_utils.address).to.not.equal('');
+      });
+      // it('should set initial settings correctly', async function () {
+      //   // Test initial settings like maxPageSize, admin role, etc.
+      // });
+    });
+
+    describe('Functional Tests', function () {
+      async function deployTicketNFT(_id, stock, use_stock, limited_edition, seller_address) {
+        // Seller will deploy a nft
+        const price = ethers.utils.parseEther('0.01');
+        const id = _id;
+        Ticket = await ethers.getContractFactory('Ticket', seller);
+        ticketContract = await Ticket.deploy(
+          id, // tokenId
+          price, // price
+          stock, // initialStock
+          use_stock, // useStock
+          limited_edition, // limited Edition
+          seller_address, // Royalty address, same as seller
+          500, // royalty percentage represented in basis points
+          [owner.address, seller_address], // Payees
+          [10, 90], // Payees distribution commission
+          uri, // nft uri
+          ticket_registry.address,
+        );
+        await ticketContract.deployed();
+        // Register nft in booth and registry
+        await ticket_registry.registerObject(id, ticket.address);
+        await ticketContract.grantRole(await ticketContract.BOOTH_ROLE(), booth.address);
+        // Enroll initial affiliate
+        await affiliates.enrollInitialAffiliateForNFT(id, seller_address);
+
+        return { ticketContract, id };
+      }
+
+      describe('Getter Functions', function () {
+        it('should correctly return affiliate information', async function () {
+          // Test getAffiliateInformation function
+
+          const { nft, id } = await deployTicketNFT(
+            573874501, // id
+            100, // stock
+            true, // use stock
+            true, // limited edition
+            seller.address, // seller address
+          );
+
+          await affiliates.enrollAffiliateForNFT(id, affiliate.address, seller.address);
+
+          const affiliateInformation = await affiliate_utils.getAffiliateInformation(
+            affiliate.address,
+          );
+
+          expect(affiliateInformation.referrer).to.equal(seller.address);
+        });
+
+        it('should correctly return nft affiliate information', async function () {
+          const { nft, id } = await deployTicketNFT(
+            573874501, // id
+            100, // stock
+            true, // use stock
+            true, // limited edition
+            seller.address, // seller address
+          );
+
+          await affiliates.enrollAffiliateForNFT(id, affiliate.address, seller.address);
+
+          const affiliateInformation = await affiliate_utils.getNFTAffiliateInformation(
+            id,
+            affiliate.address,
+          );
+
+          expect(affiliateInformation.referrer).to.equal(seller.address);
+        });
+
+        it('should correctly return a list of affiliates', async function () {
+          const { nft, id } = await deployTicketNFT(
+            573874501, // id
+            100, // stock
+            true, // use stock
+            true, // limited edition
+            seller.address, // seller address
+          );
+
+          await affiliates.enrollAffiliateForNFT(id, affiliate.address, seller.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate2.address, affiliate.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate3.address, affiliate2.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate4.address, affiliate3.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate5.address, affiliate4.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate6.address, affiliate5.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate7.address, affiliate6.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate8.address, affiliate7.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate9.address, affiliate8.address);
+
+          const [list, totalCount] = await affiliate_utils.getAffiliates(1, 6);
+
+          // Now you can use 'affiliates' and 'totalCount' directly
+          expect(list.length).to.equal(6);
+          expect(totalCount).to.equal(10);
+        });
+
+        it('should correctly return all rank criterias', async function () {
+          // Test getAffiliateReferralsChain function
+          const criterias = await affiliate_utils.getAllRankCriterias();
+          // Loop through each criteria and compare
+          rankCriteriasArray.forEach((expectedCriteria, index) => {
+            const actualCriteria = criterias[index];
+
+            // Compare each field
+            expect(
+              actualCriteria.requiredDirectReferrals.eq(expectedCriteria.requiredDirectReferrals),
+            ).to.be.true;
+            expect(actualCriteria.requiredSalesVolume.eq(expectedCriteria.requiredSalesVolume)).to
+              .be.true;
+          });
+        });
+
+        it('should get nft affiliates for referrer', async function () {
+          const { nft, id } = await deployTicketNFT(
+            573874501, // id
+            100, // stock
+            true, // use stock
+            true, // limited edition
+            seller.address, // seller address
+          );
+
+          await affiliates.enrollAffiliateForNFT(id, affiliate.address, seller.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate2.address, affiliate.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate3.address, affiliate.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate4.address, affiliate.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate5.address, affiliate.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate6.address, affiliate.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate7.address, affiliate.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate8.address, affiliate.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate9.address, affiliate.address);
+
+          const [affiliateInfo, count] = await affiliate_utils.getNftAffiliatesForReferrer(
+            id,
+            affiliate.address,
+            1,
+            12,
+          );
+          expect(count).to.equal(8);
+          expect(affiliateInfo.length).to.equal(8);
+        });
+
+        it('should correctly return nft affiliate referrals chain', async function () {
+          const { nft, id } = await deployTicketNFT(
+            573874501, // id
+            100, // stock
+            true, // use stock
+            true, // limited edition
+            seller.address, // seller address
+          );
+
+          await affiliates.enrollAffiliateForNFT(id, affiliate.address, seller.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate2.address, affiliate.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate3.address, affiliate.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate4.address, affiliate.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate5.address, affiliate.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate6.address, affiliate.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate7.address, affiliate.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate8.address, affiliate.address);
+          await affiliates.enrollAffiliateForNFT(id, affiliate9.address, affiliate.address);
+
+          const referralChain = await affiliate_utils.getNFTAffiliateReferralsChain(
+            id,
+            affiliate.address,
+          );
+        });
+      });
+    });
+  });
+}
+
+const testAuctions = true;
 if (testAuctions) {
   describe('Auctions Contract', function () {
     async function setupAuction() {
@@ -1600,7 +2135,7 @@ if (testAuctions) {
       const _value = nftPrice.mul(_qty);
 
       // Grant BUYER_ROLE and buy the NFT
-      await booth.grantRole(await booth.BUYER_ROLE(), buyer.address);
+      await booth.authorizeBuyer(buyer.address);
       await booth.connect(buyer).buy(tokenId, _nftId, _qty, _guy, { value: _value });
 
       // Grant Auctions contract approval to manage buyer's tokens
@@ -1613,7 +2148,7 @@ if (testAuctions) {
 
       const tx = await auctions
         .connect(buyer)
-        .createAuction(tokenId, _nftId, _startingPrice, _duration, _reservePrice);
+        .createAuction(ticket.address, tokenId, _nftId, _startingPrice, _duration, _reservePrice);
       const receipt = await tx.wait();
 
       return receipt.events.find((event) => event.event === 'AuctionCreated').args.auctionId;
@@ -1893,7 +2428,7 @@ if (testAuctions) {
           await auctions.connect(buyer).endAuction(auctionID);
         };
 
-        // Expect the function to fail when called by an account without the BOOKING_ROLE
+        // Expect the function to fail when called by an account without the BOOTH_ROLE
         await expect(functionRequiringBoothRole()).to.be.revertedWith(
           'AccessControl: account ' +
             buyer.address.toLowerCase() +
@@ -1933,7 +2468,7 @@ if (testAuctions) {
   });
 }
 
-const testAuctionUtilities = false;
+const testAuctionUtilities = true;
 if (testAuctionUtilities) {
   describe('AuctionUtils Contract Tests', function () {
     async function setupAuction(nftId) {
@@ -1944,7 +2479,7 @@ if (testAuctionUtilities) {
       const _value = nftPrice.mul(_qty);
 
       // Grant BUYER_ROLE and buy the NFT
-      await booth.grantRole(await booth.BUYER_ROLE(), buyer.address);
+      await booth.authorizeBuyer(buyer.address);
       await booth.connect(buyer).buy(tokenId, _nftId, _qty, _guy, { value: _value });
 
       // Grant Auctions contract approval to manage buyer's tokens
@@ -1957,7 +2492,7 @@ if (testAuctionUtilities) {
 
       const tx = await auctions
         .connect(buyer)
-        .createAuction(tokenId, _nftId, _startingPrice, _duration, _reservePrice);
+        .createAuction(ticket.address, tokenId, _nftId, _startingPrice, _duration, _reservePrice);
       const receipt = await tx.wait();
 
       return receipt.events.find((event) => event.event === 'AuctionCreated').args.auctionId;
@@ -2299,9 +2834,9 @@ if (testAuctionUtilities) {
       });
     });
 
-    // // Test for getAuctionsByNftId
-    describe('Get Auctions By NFT ID', function () {
-      it('should return auctions for a specific NFT ID', async function () {
+    // // Test for getAuctionsByTokenId
+    describe('Get Auctions By Token ID', function () {
+      it('should return auctions for a specific Token ID', async function () {
         // Implement test logic
         await setupAuction(123);
         await setupAuction(123);
@@ -2312,7 +2847,7 @@ if (testAuctionUtilities) {
         await setupAuction(123);
         await setupAuction(123);
 
-        const firstPage = await auction_utilities.getAuctionsByNftId(123, 1, 8);
+        const firstPage = await auction_utilities.getAuctionsByTokenId(tokenId, 1, 8);
 
         expect(firstPage[0].length).to.equal(8);
         expect(firstPage[1]).to.equal(8);
@@ -2329,8 +2864,8 @@ if (testAuctionUtilities) {
         await setupAuction(123);
         await setupAuction(123);
 
-        const firstPage = await auction_utilities.getAuctionsByNftId(123, 1, 4);
-        const secondPage = await auction_utilities.getAuctionsByNftId(123, 2, 4);
+        const firstPage = await auction_utilities.getAuctionsByTokenId(tokenId, 1, 4);
+        const secondPage = await auction_utilities.getAuctionsByTokenId(tokenId, 2, 4);
 
         // console.log(firstPage[0])
         // console.log(firstPage[1])

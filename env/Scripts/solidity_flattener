@@ -1,0 +1,4 @@
+#!D:\Documents\boomslag corp\uridium\env\Scripts\python.exe
+import flattener.core
+
+flattener.core.main()

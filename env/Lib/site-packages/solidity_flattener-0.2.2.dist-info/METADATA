@@ -1,0 +1,13 @@
+Metadata-Version: 2.0
+Name: solidity-flattener
+Version: 0.2.2
+Summary: Flattens Solidity code that uses imports into a single file.
+Home-page: https://github.com/BlockCatIO/solidity-flattener
+Author: Eric Huang, BlockCAT Technologies Inc.
+Author-email: team@blockcat.io
+License: UNKNOWN
+Platform: UNKNOWN
+
+UNKNOWN
+
+
